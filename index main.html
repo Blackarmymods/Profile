@@ -1,0 +1,663 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+   <link href='http://fonts.googleapis.com/css?family=Lato:400,700,900' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="css/style.css">
+
+    <title>Document</title>
+    
+    <!--crome firefox opara-->
+   <meta name="theme-color" content="#210033">
+   <!--window phone-->
+  <meta name= "msapplication-navbutton-colour" content="#210033">
+  <!--safari Os-->
+ <meta name="apple-mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-status-bar-style" content="#210033">
+ 
+
+ 
+</head>
+
+<body>
+
+<!--loading-->
+   
+<!--<div class="lds-dual-ring" ></div>
+
+ <!-- 1. Profile Picture  --> 
+ 
+    <img class="profile-picture"  
+        src="img/ak.jpg"/>
+   
+        
+
+        
+
+    <!-- 2. Profile Name or User Account  -->
+
+    <div class="profile-name">Ankit Kashyap</div>
+
+    <!-- 3. Links  -->
+
+    <a href="https://youtube.com/@BlackArmyOfficialYt?si=7FV-n9XjvnMOY4v5" class="links">
+        YouTube
+    </a>
+
+
+    <a href="https://www.facebook.com/ankitkashyap.in?mibextid=ZbWKwL" class="links">
+        Facebook
+    </a>
+
+    <a href="https://instagram.com/ankitkashyap.photography?igshid=OGQ5ZDc2ODk2ZA==" class="links">
+        Instagram
+    </a>
+
+    <a href="https://t.me/ItsBlackArmy" class="links">
+        Telegram
+    </a>  
+
+    <a href="https://powersmm.xyz" class="links">
+        My Website
+    </a>
+
+    <a href="https://whatsapp.com/channel/0029Va5oPFl6LwHftrGio11k" class="links">
+        Whatsapp Channel
+  </a>
+  
+
+
+
+
+
+<!--
+
+     <button
+   class="button"><img
+  src="https://i.ibb.co/RHNm5bK/logo-whatsapp-png-46054.png"
+  alt=""
+  height="40px"
+  width="40px"
+  </button>
+  
+   
+    
+       <button
+    
+  style="gap: 15px; background: #18b953;" class="button" href="https://api.whatsapp.com/send?phone=+8801870466055&text=Hello" target="_blank"> <svg xmlns="https://i.ibb.co/RHNm5bK/logo-whatsapp-png-46054.png"
+  alt=""
+  height="40px"
+  width="40px"  viewbox="0 0 16 16">
+
+ </button>
+    
+    
+   
+    
+    
+
+f<canvas id="canvas" width="500" height="500" >cccc</canvas>
+    
+    
+       -->
+    
+    
+    
+    
+    
+    
+    
+    
+  
+<script type="text/javascript">
+// <![CDATA[
+var bits=80; // how many bits
+var speed=40; // how fast - smaller is faster
+var bangs=10; // how many can be launched simultaneously (note that using too many can slow the script down)
+var colours=new Array("#03f", "#f03", "#0e0", "#93f", "#0cf", "#f93", "#f0c"); 
+//                     blue    red     green   purple  cyan    orange  pink
+
+
+var bangheight=new Array();
+var intensity=new Array();
+var colour=new Array();
+var Xpos=new Array();
+var Ypos=new Array();
+var dX=new Array();
+var dY=new Array();
+var stars=new Array();
+var decay=new Array();
+var swide=800;
+var shigh=600;
+var boddie;
+
+window.onload=function() { if (document.getElementById) {
+  var i;
+  boddie=document.createElement("div");
+  boddie.style.position="fixed";
+  boddie.style.top="0px";
+  boddie.style.left="0px";
+  boddie.style.overflow="visible";
+  boddie.style.width="1px";
+  boddie.style.height="1px";
+  boddie.style.backgroundColor="transparent";
+  document.body.appendChild(boddie);
+  set_width();
+  for (i=0; i<bangs; i++) {
+    write_fire(i);
+    launch(i);
+    setInterval('stepthrough('+i+')', speed);
+  }
+}}
+
+function write_fire(N) {
+  var i, rlef, rdow;
+  stars[N+'r']=createDiv('|', 12);
+  boddie.appendChild(stars[N+'r']);
+  for (i=bits*N; i<bits+bits*N; i++) {
+    stars[i]=createDiv('*', 13);
+    boddie.appendChild(stars[i]);
+  }
+}
+
+function createDiv(char, size) {
+  var div=document.createElement("div");
+  div.style.font=size+"px monospace";
+  div.style.position="absolute";
+  div.style.backgroundColor="transparent";
+  div.appendChild(document.createTextNode(char));
+  return (div);
+}
+
+function launch(N) {
+  colour[N]=Math.floor(Math.random()*colours.length);
+  Xpos[N+"r"]=swide*0.5;
+  Ypos[N+"r"]=shigh-5;
+  bangheight[N]=Math.round((0.5+Math.random())*shigh*0.4);
+  dX[N+"r"]=(Math.random()-0.5)*swide/bangheight[N];
+  if (dX[N+"r"]>1.25) stars[N+"r"].firstChild.nodeValue="/";
+  else if (dX[N+"r"]<-1.25) stars[N+"r"].firstChild.nodeValue="\\";
+  else stars[N+"r"].firstChild.nodeValue="|";
+  stars[N+"r"].style.color=colours[colour[N]];
+}
+
+function bang(N) {
+  var i, Z, A=0;
+  for (i=bits*N; i<bits+bits*N; i++) { 
+    Z=stars[i].style;
+    Z.left=Xpos[i]+"px";
+    Z.top=Ypos[i]+"px";
+    if (decay[i]) decay[i]--;
+    else A++;
+    if (decay[i]==15) Z.fontSize="7px";
+    else if (decay[i]==7) Z.fontSize="2px";
+    else if (decay[i]==1) Z.visibility="hidden";
+    Xpos[i]+=dX[i];
+    Ypos[i]+=(dY[i]+=1.25/intensity[N]);
+  }
+  if (A!=bits) setTimeout("bang("+N+")", speed);
+}
+
+function stepthrough(N) { 
+  var i, M, Z;
+  var oldx=Xpos[N+"r"];
+  var oldy=Ypos[N+"r"];
+  Xpos[N+"r"]+=dX[N+"r"];
+  Ypos[N+"r"]-=4;
+  if (Ypos[N+"r"]<bangheight[N]) {
+    M=Math.floor(Math.random()*3*colours.length);
+    intensity[N]=5+Math.random()*4;
+    for (i=N*bits; i<bits+bits*N; i++) {
+      Xpos[i]=Xpos[N+"r"];
+      Ypos[i]=Ypos[N+"r"];
+      dY[i]=(Math.random()-0.5)*intensity[N];
+      dX[i]=(Math.random()-0.5)*(intensity[N]-Math.abs(dY[i]))*1.25;
+      decay[i]=16+Math.floor(Math.random()*16);
+      Z=stars[i];
+      if (M<colours.length) Z.style.color=colours[i%2?colour[N]:M];
+      else if (M<2*colours.length) Z.style.color=colours[colour[N]];
+      else Z.style.color=colours[i%colours.length];
+      Z.style.fontSize="13px";
+      Z.style.visibility="visible";
+    }
+    bang(N);
+    launch(N);
+  }
+  stars[N+"r"].style.left=oldx+"px";
+  stars[N+"r"].style.top=oldy+"px";
+} 
+
+window.onresize=set_width;
+function set_width() {
+  var sw_min=999999;
+  var sh_min=999999;
+  if (document.documentElement && document.documentElement.clientWidth) {
+    if (document.documentElement.clientWidth>0) sw_min=document.documentElement.clientWidth;
+    if (document.documentElement.clientHeight>0) sh_min=document.documentElement.clientHeight;
+  }
+  if (typeof(self.innerWidth)!="undefined" && self.innerWidth) {
+    if (self.innerWidth>0 && self.innerWidth<sw_min) sw_min=self.innerWidth;
+    if (self.innerHeight>0 && self.innerHeight<sh_min) sh_min=self.innerHeight;
+  }
+  if (document.body.clientWidth) {
+    if (document.body.clientWidth>0 && document.body.clientWidth<sw_min) sw_min=document.body.clientWidth;
+    if (document.body.clientHeight>0 && document.body.clientHeight<sh_min) sh_min=document.body.clientHeight;
+  }
+  if (sw_min==999999 || sh_min==999999) {
+    sw_min=800;
+    sh_min=600;
+  }
+  swide=sw_min;
+  shigh=sh_min;
+}
+// ]]>
+</script>
+<style>
+
+  #snowflakeContainer {
+
+    position: absolute;
+
+    left: 0px;
+
+    top: 0px;
+
+    display: none;
+
+  }
+
+ 
+
+  .snowflake {
+
+    position: fixed;
+
+    background-color: #CCC;
+
+    user-select: none;
+
+    z-index: 1000;
+
+    pointer-events: none;
+
+    border-radius: 50%;
+
+    width: 10px;
+
+    height: 10px;
+
+  }
+
+</style>
+
+ 
+
+<div id="snowflakeContainer">
+
+  <span class="snowflake"></span>
+
+</div>
+
+ 
+
+<script>
+
+  // Array to store our Snowflake objects
+
+  var snowflakes = [];
+
+ 
+
+  // Global variables to store our browser's window size
+
+  var browserWidth;
+
+  var browserHeight;
+
+ 
+
+  // Specify the number of snowflakes you want visible
+
+  var numberOfSnowflakes = 50;
+
+ 
+
+  // Flag to reset the position of the snowflakes
+
+  var resetPosition = false;
+
+ 
+
+  // Handle accessibility
+
+  var enableAnimations = false;
+
+  var reduceMotionQuery = matchMedia("(prefers-reduced-motion)");
+
+ 
+
+  // Handle animation accessibility preferences 
+
+  function setAccessibilityState() {
+
+    if (reduceMotionQuery.matches) {
+
+      enableAnimations = false;
+
+    } else { 
+
+      enableAnimations = true;
+
+    }
+
+  }
+
+  setAccessibilityState();
+
+ 
+
+  reduceMotionQuery.addListener(setAccessibilityState);
+
+ 
+
+  //
+
+  // It all starts here...
+
+  //
+
+  function setup() {
+
+    if (enableAnimations) {
+
+      window.addEventListener("DOMContentLoaded", generateSnowflakes, false);
+
+      window.addEventListener("resize", setResetFlag, false);
+
+    }
+
+  }
+
+  setup();
+
+ 
+
+  //
+
+  // Constructor for our Snowflake object
+
+  //
+
+  function Snowflake(element, speed, xPos, yPos) {
+
+    // set initial snowflake properties
+
+    this.element = element;
+
+    this.speed = speed;
+
+    this.xPos = xPos;
+
+    this.yPos = yPos;
+
+    this.scale = 1;
+
+ 
+
+    // declare variables used for snowflake's motion
+
+    this.counter = 0;
+
+    this.sign = Math.random() < 0.5 ? 1 : -1;
+
+ 
+
+    // setting an initial opacity and size for our snowflake
+
+    this.element.style.opacity = (.1 + Math.random()) / 3;
+
+  }
+
+ 
+
+  //
+
+  // The function responsible for actually moving our snowflake
+
+  //
+
+  Snowflake.prototype.update = function () {
+
+    // using some trigonometry to determine our x and y position
+
+    this.counter += this.speed / 5000;
+
+    this.xPos += this.sign * this.speed * Math.cos(this.counter) / 40;
+
+    this.yPos += Math.sin(this.counter) / 40 + this.speed / 30;
+
+    this.scale = .5 + Math.abs(10 * Math.cos(this.counter) / 20);
+
+ 
+
+    // setting our snowflake's position
+
+    setTransform(Math.round(this.xPos), Math.round(this.yPos), this.scale, this.element);
+
+ 
+
+    // if snowflake goes below the browser window, move it back to the top
+
+    if (this.yPos > browserHeight) {
+
+      this.yPos = -50;
+
+    }
+
+  }
+
+ 
+
+  //
+
+  // A performant way to set your snowflake's position and size
+
+  //
+
+  function setTransform(xPos, yPos, scale, el) {
+
+    el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0) scale(${scale}, ${scale})`;
+
+  }
+
+ 
+
+  //
+
+  // The function responsible for creating the snowflake
+
+  //
+
+  function generateSnowflakes() {
+
+ 
+
+    // get our snowflake element from the DOM and store it
+
+    var originalSnowflake = document.querySelector(".snowflake");
+
+ 
+
+    // access our snowflake element's parent container
+
+    var snowflakeContainer = originalSnowflake.parentNode;
+
+    snowflakeContainer.style.display = "block";
+
+ 
+
+    // get our browser's size
+
+    browserWidth = document.documentElement.clientWidth;
+
+    browserHeight = document.documentElement.clientHeight;
+
+ 
+
+    // create each individual snowflake
+
+    for (var i = 0; i < numberOfSnowflakes; i++) {
+
+ 
+
+      // clone our original snowflake and add it to snowflakeContainer
+
+      var snowflakeClone = originalSnowflake.cloneNode(true);
+
+      snowflakeContainer.appendChild(snowflakeClone);
+
+ 
+
+      // set our snowflake's initial position and related properties
+
+      var initialXPos = getPosition(50, browserWidth);
+
+      var initialYPos = getPosition(50, browserHeight);
+
+      var speed = 5 + Math.random() * 40;
+
+ 
+
+      // create our Snowflake object
+
+      var snowflakeObject = new Snowflake(snowflakeClone,
+
+        speed,
+
+        initialXPos,
+
+        initialYPos);
+
+      snowflakes.push(snowflakeObject);
+
+    }
+
+ 
+
+    // remove the original snowflake because we no longer need it visible
+
+    snowflakeContainer.removeChild(originalSnowflake);
+
+ 
+
+    moveSnowflakes();
+
+  }
+
+ 
+
+  //
+
+  // Responsible for moving each snowflake by calling its update function
+
+  //
+
+  function moveSnowflakes() {
+
+ 
+
+    if (enableAnimations) {
+
+      for (var i = 0; i < snowflakes.length; i++) {
+
+        var snowflake = snowflakes[i];
+
+        snowflake.update();
+
+      }      
+
+    }
+
+ 
+
+    // Reset the position of all the snowflakes to a new value
+
+    if (resetPosition) {
+
+      browserWidth = document.documentElement.clientWidth;
+
+      browserHeight = document.documentElement.clientHeight;
+
+ 
+
+      for (var i = 0; i < snowflakes.length; i++) {
+
+        var snowflake = snowflakes[i];
+
+ 
+
+        snowflake.xPos = getPosition(50, browserWidth);
+
+        snowflake.yPos = getPosition(50, browserHeight);
+
+      }
+
+ 
+
+      resetPosition = false;
+
+    }
+
+ 
+
+    requestAnimationFrame(moveSnowflakes);
+
+  }
+
+ 
+
+  //
+
+  // This function returns a number between (maximum - offset) and (maximum + offset)
+
+  //
+
+  function getPosition(offset, size) {
+
+    return Math.round(-1 * offset + Math.random() * (size + 2 * offset));
+
+  }
+
+ 
+
+  //
+
+  // Trigger a reset of all the snowflakes' positions
+
+  //
+
+  function setResetFlag(e) {
+
+    resetPosition = true;
+
+  }
+
+</script>
+
+<!--Copyright title button-->
+
+ <div class="bottom">My Profile 2024 Copyright. All Rights Reserved  </div>
+ 
+ 
+ 
+ 
+ 
+
+ 
+
+</body>
+
+</html>
