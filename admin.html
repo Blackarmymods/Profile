@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>पासवर्ड सुरक्षित लॉगिन</title>
+    <!-- Tailwind CSS CDN load कर रहे हैं -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 'Inter' font और कस्टम स्टाइल का उपयोग कर रहे हैं */
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* बैकग्राउंड एनिमेशन के कारण स्क्रोल बार हटाने के लिए */
+        }
+
+        /* 1. Animated Background CSS */
+        .animated-background {
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradient-animation 15s ease infinite;
+        }
+
+        @keyframes gradient-animation {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        /* 2. Glassmorphism Card CSS */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.15); /* हल्का पारदर्शी सफ़ेद */
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            backdrop-filter: blur(10px); /* ग्लास इफ़ेक्ट का मुख्य हिस्सा */
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        /* 3. Modal Animation */
+        .modal-enter-from, .modal-leave-to {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        .modal-enter-active, .modal-leave-active {
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 animated-background">
+
+    <!-- Main Container Card (Glass Effect) -->
+    <!-- Card को थोड़ा छोटा और ज़्यादा गोल कर रहे हैं -->
+    <div class="w-full max-w-sm p-8 md:p-10 glass-card text-white">
+        
+        <!-- Heading -->
+        <h1 class="text-3xl font-bold mb-4 text-center text-shadow-sm">
+            🔐 ADMIN PANEL
+        </h1>
+        <p class="mb-8 text-center text-gray-200">
+             Login To Continue 
+        </p>
+
+        <!-- Input Field -->
+        <div class="mb-6">
+            <label for="passwordInput" class="block text-sm font-medium mb-2 text-gray-100">
+                पासवर्ड दर्ज करें:
+            </label>
+            <input 
+                type="password" 
+                id="passwordInput" 
+                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-pink-500 focus:border-pink-500 transition duration-150 shadow-inner bg-white/20 text-gray-900 placeholder-gray-600 outline-none"
+                placeholder="Please Enter Your Password"
+                onkeypress="handleKeyPress(event)"
+            >
+        </div>
+
+        <!-- Action Button -->
+        <button 
+            id="actionButton" 
+            onclick="attemptAction()" 
+            class="w-full bg-pink-600 text-white font-semibold py-3 rounded-xl hover:bg-pink-700 transition duration-300 ease-in-out transform hover:scale-[1.03] shadow-lg shadow-pink-500/50 focus:outline-none focus:ring-4 focus:ring-pink-500 focus:ring-opacity-50"
+        >
+            ADMIN CONTROL PANEL खोलें
+        </button>
+    </div>
+
+    <!-- 4. Custom Modal/Popup Structure (Alert() का विकल्प) -->
+    <div id="resultModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 transition-opacity">
+        <div id="modalContent" class="p-8 w-11/12 max-w-sm rounded-xl text-center modal-leave-to" role="alert">
+            <div id="modalIcon" class="text-6xl mb-4"></div>
+            <h3 id="modalTitle" class="text-2xl font-bold mb-2"></h3>
+            <p id="modalMessage" class="mb-6"></p>
+            <button onclick="closeModal()" class="px-6 py-2 rounded-lg font-semibold transition duration-200 shadow-md transform hover:scale-105" id="modalButton"></button>
+        </div>
+    </div>
+
+    <script>
+        // --------------------------------------------------------
+        // MANDATORY GLOBAL VARIABLES
+        // यह वह सीक्रेट पासवर्ड है जो HTML/JavaScript में सेव है।
+        const SECRET_PASSWORD = "MeraSecretCode123"; // 👈 अपना पासवर्ड बदलें।
+
+        // 🎯 यह वह लिंक है जिस पर रीडायरेक्ट करना है।
+        const TARGET_URL = "https://www.google.com"; // 👈 अपना वांछित लिंक डालें।
+        // --------------------------------------------------------
+
+        const passwordInput = document.getElementById('passwordInput');
+        const modal = document.getElementById('resultModal');
+        const modalContent = document.getElementById('modalContent');
+        const modalIcon = document.getElementById('modalIcon');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalButton = document.getElementById('modalButton');
+
+        /**
+         * एंटर कुंजी दबाने पर लॉगिन क्रिया को ट्रिगर करता है।
+         */
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                attemptAction();
+            }
+        }
+
+        /**
+         * कस्टम मोडल (पॉपअप) दिखाता है।
+         * @param {boolean} isSuccess - सही (true) या गलत (false) पासवर्ड के लिए।
+         */
+        function showModal(isSuccess) {
+            // पहले मोडल की पिछली क्लास को साफ करें
+            modalContent.className = 'p-8 w-11/12 max-w-sm rounded-xl text-center';
+
+            if (isSuccess) {
+                // सफलता का मोडल (Glass Effect)
+                modalContent.classList.add('bg-green-500/80', 'text-white', 'glass-card');
+                modalIcon.textContent = '🎉';
+                modalTitle.textContent = 'Login Successful';
+                modalMessage.textContent = ' wait a second...';
+                modalButton.textContent = ' CONTINUE ';
+                modalButton.classList.add('bg-white', 'text-green-600', 'hover:bg-gray-100');
+            } else {
+                // त्रुटि का मोडल (Glass Effect)
+                modalContent.classList.add('bg-red-500/80', 'text-white', 'glass-card');
+                modalIcon.textContent = '⚠️';
+                modalTitle.textContent = 'Wrong Password';
+                modalMessage.textContent = 'पासवर्ड गलत। कृपया फिर से प्रयास करें।';
+                modalButton.textContent = 'Try Again';
+                modalButton.classList.add('bg-white', 'text-red-600', 'hover:bg-gray-100');
+            }
+
+            // मोडल को दिखाएँ और एनिमेट करें
+            modal.classList.remove('hidden');
+            modal.classList.add('flex', 'modal-enter-active');
+            
+            // 10ms के बाद 'modal-enter-from' क्लास हटा दें ताकि ट्रांज़िशन शुरू हो सके
+            setTimeout(() => {
+                modalContent.classList.remove('modal-leave-to');
+                modalContent.classList.add('modal-enter-from');
+                // यह सुनिश्चित करने के लिए कि ट्रांज़िशन क्लास लागू हो, एक छोटा टाइमआउट दें
+                setTimeout(() => {
+                     modalContent.classList.remove('modal-enter-from');
+                }, 10);
+            }, 10);
+        }
+
+        /**
+         * कस्टम मोडल (पॉपअप) को छिपाता है।
+         */
+        function closeModal() {
+            // मोडल को छिपाएँ और एनिमेशन के लिए तैयार करें
+            modalContent.classList.add('modal-leave-active', 'modal-leave-to');
+
+            // एनिमेशन पूरा होने के बाद मोडल को छिपाएँ
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex', 'modal-leave-active');
+            }, 300); // CSS ट्रांज़िशन की अवधि से मेल खाना चाहिए
+        }
+
+        /**
+         * उपयोगकर्ता द्वारा दर्ज किए गए पासवर्ड की जाँच करता है और क्रिया निष्पादित करता है।
+         */
+        function attemptAction() {
+            const enteredPassword = passwordInput.value;
+            
+            if (enteredPassword === SECRET_PASSWORD) {
+                // पासवर्ड सही है
+                showModal(true);
+
+                // 2 सेकंड के बाद रीडायरेक्ट करें
+                setTimeout(() => {
+                    window.location.href = TARGET_URL;
+                }, 2000); 
+                
+            } else {
+                // पासवर्ड गलत है
+                showModal(false);
+
+                // इनपुट फील्ड को खाली करें
+                passwordInput.value = '';
+            }
+        }
+    </script>
+</body>
+</html>
