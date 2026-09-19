@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Garden Royale: Speed & Pause</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a3a3a; touch-action: none; font-family: 'Inter', sans-serif; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; padding: 15px; display: flex; flex-direction: column; justify-content: space-between; }
+        
+        .glass-ui { 
+            background: rgba(0, 0, 0, 0.25); 
+            backdrop-filter: blur(6px); 
+            border: 1px solid rgba(255,255,255,0.1); 
+            border-radius: 12px; 
+            padding: 8px 12px; 
+            color: white; 
+            pointer-events: auto;
+        }
+
+        #mini-map { 
+            width: 100px; 
+            height: 100px; 
+            background: rgba(0, 20, 0, 0.4); 
+            border: 1.5px solid rgba(255,255,255,0.1); 
+            border-radius: 50%; 
+            overflow: hidden; 
+            position: relative; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
+        }
+
+        #map-canvas { width: 100%; height: 100%; transform: rotate(180deg); }
+        
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        
+        .btn-start { 
+            background: #059669; 
+            color: white; 
+            font-weight: 900; 
+            padding: 15px 45px; 
+            border-radius: 50px; 
+            text-transform: uppercase; 
+            cursor: pointer; 
+            pointer-events: auto; 
+            box-shadow: 0 6px 0 #064e3b; 
+            transition: all 0.2s; 
+            border: none;
+            outline: none;
+        }
+        .btn-start:active { transform: translateY(3px); box-shadow: 0 3px 0 #064e3b; }
+
+        .stat-label { font-size: 8px; opacity: 0.8; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+        .stat-value { font-size: 20px; font-weight: 900; font-style: italic; line-height: 1; }
+
+        #pause-btn {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #pause-btn:active { transform: scale(0.9); }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="flex justify-between items-start">
+            <div class="flex gap-2">
+                <div class="glass-ui text-center">
+                    <div class="stat-label">Kills</div>
+                    <div id="remaining" class="stat-value">0</div>
+                </div>
+                <!-- STOP / PLAY BUTTON -->
+                <div id="pause-btn" class="glass-ui flex items-center justify-center w-12 h-12">
+                    <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    <svg id="play-icon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+            </div>
+            <div id="mini-map"><canvas id="map-canvas"></canvas></div>
+        </div>
+
+        <div class="flex justify-between items-end">
+            <div class="glass-ui w-44">
+                <div id="leaderboard" class="space-y-0.5 text-[9px] font-bold text-emerald-100"></div>
+            </div>
+            <div class="glass-ui text-right">
+                <div class="stat-label">Score</div>
+                <div id="score" class="stat-value">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay" class="overlay">
+        <div id="start-panel" class="text-center px-8">
+            <h1 class="text-5xl font-black text-white mb-2 italic leading-tight">TEA LEAF<br><span class="text-emerald-400">FAST & FLOW</span></h1>
+            <p class="text-white/60 mb-8 uppercase text-[10px] tracking-[0.2em] leading-loose">
+                Unlimited Challenge - High Speed Mode<br>
+                Use STOP button to take a break!<br>
+                <span class="text-emerald-400 mt-2 block">Snake speed increased!</span>
+            </p>
+            <button id="startBtn" class="btn-start">Khel Shuru Karein</button>
+        </div>
+    </div>
+
+    <script>
+        const PLAY_RADIUS = 260; 
+        const VISIBLE_RADIUS = 380; 
+        const BASE_SPEED = 0.50; // Increased from 0.35
+        const BOOST_SPEED = 0.90; // Increased from 0.75
+        const PLAYER_GROWTH = 1; 
+        const FRUIT_SCORE_VALUE = 1; 
+        const AI_AVOIDANCE_RADIUS = 35;
+        const MAX_SNEKS_ON_MAP = 25;
+        
+        let scene, camera, renderer, playerSnek, crown;
+        let rivals = [], fruits = [], trees = [];
+        let score = 0, isMoving = false, isTurning = false, turnDir = 0, isBoosting = false;
+        let isPaused = false;
+        let totalEliminated = 0;
+        let lastBoostPenaltyTime = 0;
+        let lastAIGrowthTime = 0;
+
+        const mapCanvas = document.getElementById('map-canvas');
+        const mapCtx = mapCanvas.getContext('2d');
+        mapCanvas.width = 100; mapCanvas.height = 100;
+
+        function createTeaLeaves() {
+            const leafShape = new THREE.Shape();
+            leafShape.moveTo(0, 0);
+            leafShape.quadraticCurveTo(0.2, 0.5, 0, 1.2); 
+            leafShape.quadraticCurveTo(-0.2, 0.5, 0, 0); 
+            
+            const leafGeo = new THREE.ShapeGeometry(leafShape);
+            const leafMat = new THREE.MeshStandardMaterial({ color: 0x064e3b, side: THREE.DoubleSide, roughness: 0.8 });
+            const leafCount = 4500;
+            const instancedLeaves = new THREE.Group();
+
+            for(let i=0; i<leafCount; i++) {
+                const leaf = new THREE.Mesh(leafGeo, leafMat);
+                const r = Math.random() * VISIBLE_RADIUS;
+                const a = Math.random() * Math.PI * 2;
+                leaf.position.set(Math.cos(a)*r, 0.1, Math.sin(a)*r);
+                leaf.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, (Math.random() - 0.5) * 0.5);
+                leaf.scale.setScalar(0.5 + Math.random() * 0.8);
+                instancedLeaves.add(leaf);
+            }
+            scene.add(instancedLeaves);
+        }
+
+        function createTree(x, z, sizeScale = 1) {
+            const group = new THREE.Group();
+            const trunkHeight = 7 * sizeScale;
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.7 * sizeScale, 1 * sizeScale, trunkHeight), new THREE.MeshStandardMaterial({ color: 0x2d1b15 }));
+            trunk.position.y = trunkHeight / 2;
+            group.add(trunk);
+            const leaves = new THREE.Mesh(new THREE.SphereGeometry(4 * sizeScale, 7, 7), new THREE.MeshStandardMaterial({ color: 0x064e3b, flatShading: true }));
+            leaves.position.y = trunkHeight;
+            group.add(leaves);
+            group.position.set(x, 0, z);
+            scene.add(group);
+            return { pos: new THREE.Vector2(x, z), radius: 3 * sizeScale };
+        }
+
+        function spawnFruit(pos, color = 0xff3399, value = FRUIT_SCORE_VALUE) {
+            const fruit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.6, 8, 8), 
+                new THREE.MeshStandardMaterial({
+                    color: color, 
+                    emissive: color, 
+                    emissiveIntensity: 0.8
+                })
+            );
+            if(pos) {
+                fruit.position.copy(pos);
+                fruit.position.y = 0.7;
+            } else {
+                const r = Math.random() * (PLAY_RADIUS - 10);
+                const a = Math.random() * Math.PI * 2;
+                fruit.position.set(Math.cos(a)*r, 0.7, Math.sin(a)*r);
+            }
+            fruit.userData = { value: value };
+            scene.add(fruit);
+            fruits.push(fruit);
+        }
+
+        class Snek {
+            constructor(color, isPlayer = false) {
+                this.isPlayer = isPlayer;
+                this.color = color;
+                this.segments = [];
+                this.positions = [];
+                this.angle = Math.random() * Math.PI * 2;
+                this.dead = false;
+                this.aiScore = 0;
+
+                const headSize = isPlayer ? 0.9 : 1.1;
+                this.head = new THREE.Mesh(new THREE.SphereGeometry(headSize, 16, 16), new THREE.MeshStandardMaterial({ color, roughness: 0.1, metalness: 0.2 }));
+                
+                const eyeGeo = new THREE.SphereGeometry(0.2, 8, 8);
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+                leftEye.position.set(0.35, 0.4, 0.55);
+                const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+                pupil.position.z = 0.12;
+                leftEye.add(pupil);
+                const rightEye = leftEye.clone();
+                rightEye.position.x = -0.35;
+                this.head.add(leftEye, rightEye);
+
+                const tongueGeo = new THREE.BoxGeometry(0.12, 0.03, 0.6);
+                this.tongue = new THREE.Mesh(tongueGeo, new THREE.MeshBasicMaterial({ color: 0xff4d4d }));
+                this.tongue.position.set(0, -0.2, 0.65);
+                this.head.add(this.tongue);
+                
+                const startR = Math.random() * (PLAY_RADIUS - 50);
+                const startA = Math.random() * Math.PI * 2;
+                this.head.position.set(Math.cos(startA)*startR, 1, Math.sin(startA)*startR);
+                scene.add(this.head);
+
+                this.positions = Array(1200).fill().map(() => this.head.position.clone());
+                const initSize = isPlayer ? 10 : 25; 
+                for(let i=0; i<initSize; i++) this.grow();
+            }
+
+            grow() {
+                const segSize = this.isPlayer ? 0.7 : 0.95;
+                const seg = new THREE.Mesh(new THREE.SphereGeometry(segSize, 12, 12), new THREE.MeshStandardMaterial({ color: this.color, roughness: 0.3 }));
+                scene.add(seg);
+                this.segments.push(seg);
+            }
+
+            shrink() {
+                if(this.segments.length > 3) {
+                    const seg = this.segments.pop();
+                    scene.remove(seg);
+                }
+            }
+
+            update() {
+                if(this.dead || isPaused) return;
+                let currentSpeed = BASE_SPEED;
+
+                if(this.isPlayer) {
+                    if(isTurning) this.angle += turnDir * 0.05;
+                    if(isBoosting) currentSpeed = BOOST_SPEED;
+                } else {
+                    let turnBias = 0;
+                    const checkSneks = [playerSnek, ...rivals];
+                    
+                    checkSneks.forEach(other => {
+                        if (!other || other === this || other.dead) return;
+                        
+                        const distToHead = this.head.position.distanceTo(other.head.position);
+                        if (distToHead < AI_AVOIDANCE_RADIUS) {
+                            const diffAngle = Math.atan2(other.head.position.x - this.head.position.x, other.head.position.z - this.head.position.z);
+                            let angleDiff = (diffAngle - this.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+                            turnBias -= Math.sign(angleDiff) * (1.5 - distToHead / AI_AVOIDANCE_RADIUS);
+                        }
+
+                        const samples = [0, Math.floor(other.segments.length/2), other.segments.length-1];
+                        samples.forEach(idx => {
+                            if (other.segments[idx]) {
+                                const distToSeg = this.head.position.distanceTo(other.segments[idx].position);
+                                if (distToSeg < AI_AVOIDANCE_RADIUS * 0.8) {
+                                    const diffAngle = Math.atan2(other.segments[idx].position.x - this.head.position.x, other.segments[idx].position.z - this.head.position.z);
+                                    let angleDiff = (diffAngle - this.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+                                    turnBias -= Math.sign(angleDiff) * 0.15;
+                                }
+                            }
+                        });
+                    });
+
+                    if (Math.abs(turnBias) > 0.01) {
+                        this.angle += turnBias * 0.1;
+                    } else {
+                        if(Math.random() < 0.02) this.angle += (Math.random() - 0.5) * 0.8;
+                    }
+
+                    if(this.head.position.length() > PLAY_RADIUS - 20) {
+                        const centerAngle = Math.atan2(-this.head.position.x, -this.head.position.z);
+                        let diff = (centerAngle - this.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+                        this.angle += diff * 0.1;
+                    }
+                }
+
+                this.tongue.position.z = 0.65 + Math.sin(Date.now() * (isBoosting ? 0.02 : 0.01)) * 0.1;
+
+                trees.forEach(tree => {
+                    const dx = this.head.position.x - tree.pos.x;
+                    const dz = this.head.position.z - tree.pos.y;
+                    const distSq = dx*dx + dz*dz;
+                    const minDist = tree.radius + 1.5;
+                    if(distSq < minDist * minDist) {
+                        const d = Math.sqrt(distSq);
+                        this.head.position.x += (dx / d) * (minDist - d);
+                        this.head.position.z += (dz / d) * (minDist - d);
+                        this.angle += 0.06; 
+                    }
+                });
+
+                this.head.position.x += Math.sin(this.angle) * currentSpeed;
+                this.head.position.z += Math.cos(this.angle) * currentSpeed;
+                this.head.rotation.y = this.angle;
+
+                if(this.head.position.length() >= PLAY_RADIUS) this.destroy();
+
+                this.positions.unshift(this.head.position.clone());
+                if(this.positions.length > 2000) this.positions.pop();
+
+                const spacing = (this.isPlayer && isBoosting) ? 2 : 4; // Tighter spacing for higher speed
+                this.segments.forEach((seg, i) => {
+                    const idx = (i + 1) * spacing;
+                    if(this.positions[idx]) seg.position.copy(this.positions[idx]);
+                });
+            }
+
+            destroy() {
+                if(this.dead) return;
+                this.dead = true;
+                this.segments.forEach((seg, i) => {
+                    if (i % 3 === 0) spawnFruit(seg.position, this.color, FRUIT_SCORE_VALUE);
+                    scene.remove(seg);
+                });
+                scene.remove(this.head);
+                if(this.isPlayer) endGame();
+                else { 
+                    totalEliminated++; 
+                    setTimeout(() => { if(!isPaused) spawnAI(); }, 500); 
+                }
+            }
+
+            getScoreValue() {
+                return this.isPlayer ? score : (this.segments.length + this.aiScore);
+            }
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a1f1f);
+            scene.fog = new THREE.Fog(0x0a1f1f, 250, 600);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(100, 300, 100);
+            scene.add(sun);
+
+            const floor = new THREE.Mesh(new THREE.CircleGeometry(VISIBLE_RADIUS, 64), new THREE.MeshStandardMaterial({ color: 0x052e16 }));
+            floor.rotation.x = -Math.PI/2;
+            scene.add(floor);
+
+            createFence();
+            createTeaLeaves();
+
+            const crownGeo = new THREE.TorusGeometry(0.8, 0.2, 8, 16);
+            crown = new THREE.Mesh(crownGeo, new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8 }));
+            crown.rotation.x = Math.PI/2;
+            scene.add(crown);
+            crown.visible = false;
+
+            for(let i=0; i<120; i++) {
+                const r = Math.random() * VISIBLE_RADIUS;
+                const a = Math.random() * Math.PI * 2;
+                const tree = createTree(Math.cos(a)*r, Math.sin(a)*r, 1 + Math.random());
+                if(r < PLAY_RADIUS - 20) trees.push(tree);
+            }
+
+            const handleInput = (e, isDown) => {
+                if(!isMoving || isPaused) return;
+                if (e.target.closest('.glass-ui') || e.target.id === 'startBtn') return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                if (isDown) {
+                    if (clientY < window.innerHeight * 0.35) {
+                        isBoosting = true; isTurning = false;
+                    } else {
+                        isTurning = true; isBoosting = false;
+                        turnDir = clientX < window.innerWidth / 2 ? 1 : -1;
+                    }
+                } else {
+                    isTurning = false; isBoosting = false;
+                }
+            };
+
+            window.addEventListener('mousedown', (e) => handleInput(e, true));
+            window.addEventListener('touchstart', (e) => { handleInput(e, true); }, { passive: true });
+            window.addEventListener('mouseup', () => { isTurning = false; isBoosting = false; });
+            window.addEventListener('touchend', () => { isTurning = false; isBoosting = false; });
+
+            document.getElementById('startBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                startGame();
+            });
+
+            document.getElementById('pause-btn').addEventListener('click', togglePause);
+
+            animate();
+        }
+
+        function togglePause(e) {
+            if(e) e.stopPropagation();
+            if(!isMoving) return;
+            
+            isPaused = !isPaused;
+            const pIcon = document.getElementById('pause-icon');
+            const playIcon = document.getElementById('play-icon');
+            
+            if(isPaused) {
+                pIcon.classList.add('hidden');
+                playIcon.classList.remove('hidden');
+            } else {
+                pIcon.classList.remove('hidden');
+                playIcon.classList.add('hidden');
+            }
+        }
+
+        function startGame() {
+            if(playerSnek) {
+                scene.remove(playerSnek.head);
+                playerSnek.segments.forEach(s => scene.remove(s));
+            }
+            rivals.forEach(r => { scene.remove(r.head); r.segments.forEach(s => scene.remove(s)); });
+            fruits.forEach(f => scene.remove(f));
+
+            document.getElementById('overlay').style.display = 'none';
+            score = 0; totalEliminated = 0; rivals = []; fruits = [];
+            isTurning = false; isBoosting = false; crown.visible = false;
+            isPaused = false;
+            lastBoostPenaltyTime = Date.now();
+            lastAIGrowthTime = Date.now();
+
+            playerSnek = new Snek(0x00ffcc, true);
+            for(let i=0; i < MAX_SNEKS_ON_MAP; i++) spawnAI();
+            for(let i=0; i<150; i++) spawnFruit();
+            isMoving = true;
+        }
+
+        function endGame() {
+            isMoving = false;
+            isBoosting = false;
+            document.getElementById('overlay').style.display = 'flex';
+        }
+
+        function spawnAI() {
+            const colors = [0xff3366, 0x9933ff, 0xffcc00, 0x33cc33, 0xff9933, 0x0099ff, 0xffffff];
+            const ai = new Snek(colors[Math.floor(Math.random()*colors.length)]);
+            rivals.push(ai);
+        }
+
+        function createFence() {
+            const posts = 250;
+            for(let i=0; i<posts; i++) {
+                const angle = (i / posts) * Math.PI * 2;
+                const x = Math.cos(angle) * PLAY_RADIUS;
+                const z = Math.sin(angle) * PLAY_RADIUS;
+                const post = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 1), new THREE.MeshStandardMaterial({ color: 0x2d1b15 }));
+                post.position.set(x, 2, z);
+                post.lookAt(0, 2, 0);
+                scene.add(post);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(!isMoving || !playerSnek || isPaused) {
+                if(isPaused) renderer.render(scene, camera); // Still render while paused for visuals
+                return;
+            }
+
+            const now = Date.now();
+
+            if(now - lastAIGrowthTime > 2000) {
+                rivals.forEach(r => {
+                    if(!r.dead) {
+                        r.aiScore += 1;
+                        if(Math.random() > 0.6) r.grow();
+                    }
+                });
+                lastAIGrowthTime = now;
+            }
+
+            if(isBoosting && now - lastBoostPenaltyTime > 1500) {
+                if(score > 0) {
+                    score = Math.max(0, score - 1);
+                    playerSnek.shrink();
+                }
+                lastBoostPenaltyTime = now;
+            }
+
+            playerSnek.update();
+            rivals = rivals.filter(r => {
+                if(r.dead) return false;
+                r.update();
+
+                playerSnek.segments.forEach(seg => {
+                    if(r.head.position.distanceTo(seg.position) < 1.1) r.destroy();
+                });
+
+                r.segments.forEach(seg => {
+                    if(playerSnek.head.position.distanceTo(seg.position) < 0.9) playerSnek.destroy();
+                });
+
+                rivals.forEach(other => {
+                    if (other === r || other.dead) return;
+                    other.segments.forEach(seg => {
+                         if(r.head.position.distanceTo(seg.position) < 1.0) r.destroy();
+                    });
+                });
+
+                return !r.dead;
+            });
+
+            fruits.forEach((f, i) => {
+                if(playerSnek.head.position.distanceTo(f.position) < 2.5) {
+                    scene.remove(f);
+                    score += f.userData.value || 1;
+                    playerSnek.grow();
+                    fruits.splice(i, 1);
+                    spawnFruit(); 
+                } else {
+                    rivals.forEach(r => {
+                        if (r.head.position.distanceTo(f.position) < 2.5) {
+                            scene.remove(f);
+                            r.grow();
+                            fruits.splice(i, 1);
+                            spawnFruit();
+                        }
+                    });
+                }
+            });
+
+            const all = [playerSnek, ...rivals].filter(s => !s.dead);
+            if(all.length > 0) {
+                all.sort((a,b) => b.getScoreValue() - a.getScoreValue());
+                const king = all[0];
+                crown.position.set(king.head.position.x, 5.0, king.head.position.z);
+                crown.rotation.z += 0.04; 
+                crown.visible = true;
+            }
+
+            let lb = "";
+            all.slice(0, 5).forEach((s, idx) => {
+                lb += `<div class="flex justify-between ${s.isPlayer ? 'text-emerald-400 font-black' : 'opacity-60'}">
+                    <span>#${idx+1} ${s.isPlayer ? 'YOU' : 'SNEK'}</span>
+                    <span>${s.getScoreValue()}</span>
+                </div>`;
+            });
+            document.getElementById('leaderboard').innerHTML = lb;
+            document.getElementById('score').innerText = score;
+            document.getElementById('remaining').innerText = totalEliminated;
+
+            const camDist = 45 + (playerSnek.segments.length * 0.12);
+            const camHeight = 35 + (playerSnek.segments.length * 0.08);
+            const camX = playerSnek.head.position.x - Math.sin(playerSnek.angle) * camDist;
+            const camZ = playerSnek.head.position.z - Math.cos(playerSnek.angle) * camDist;
+            camera.position.lerp(new THREE.Vector3(camX, camHeight, camZ), 0.06);
+            camera.lookAt(playerSnek.head.position.clone().add(new THREE.Vector3(Math.sin(playerSnek.angle)*10, 0, Math.cos(playerSnek.angle)*10)));
+
+            updateMap();
+            renderer.render(scene, camera);
+        }
+
+        function updateMap() {
+            if(!playerSnek) return;
+            mapCtx.clearRect(0,0,100,100);
+            const s = 100 / (VISIBLE_RADIUS * 2.1);
+            const c = 50;
+            mapCtx.strokeStyle = "rgba(255,255,255,0.1)";
+            mapCtx.beginPath(); mapCtx.arc(c, c, PLAY_RADIUS * s, 0, Math.PI*2); mapCtx.stroke();
+            mapCtx.fillStyle = isBoosting ? "#ffea00" : "#00ffcc";
+            mapCtx.fillRect(playerSnek.head.position.x*s+c-1.5, playerSnek.head.position.z*s+c-1.5, 3, 3);
+            mapCtx.fillStyle = "rgba(255,51,102,0.8)"; rivals.forEach(r => mapCtx.fillRect(r.head.position.x*s+c-1, r.head.position.z*s+c-1, 2, 2));
+        }
+
+        window.onload = init;
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+    </script>
+</body>
+</html>
