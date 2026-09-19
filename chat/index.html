@@ -237,19 +237,24 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-analytics.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
         import { getDatabase, ref, set, push, onValue, update, remove, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
 
+        // Updated Firebase Configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyBIJguEyg3PeivTmg8Kz9wq_kfL8Ksqe8M",
-            authDomain: "chat-cff83.firebaseapp.com",
-            projectId: "chat-cff83",
-            storageBucket: "chat-cff83.firebasestorage.app",
-            messagingSenderId: "1061734023756",
-            appId: "1:1061734023756:web:8b63a636d3639e137daae9"
+            apiKey: "AIzaSyCqzcsa0UWFSpfSOY0oIzUgfFX_2TjbP68",
+            authDomain: "chat-room-8de13.firebaseapp.com",
+            databaseURL: "https://chat-room-8de13-default-rtdb.firebaseio.com",
+            projectId: "chat-room-8de13",
+            storageBucket: "chat-room-8de13.firebasestorage.app",
+            messagingSenderId: "339893727775",
+            appId: "1:339893727775:web:f74ed049897eda2d965b2a",
+            measurementId: "G-YHGQX2C6JD"
         };
 
         const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
         const auth = getAuth(app);
         const db = getDatabase(app);
 
@@ -313,4 +318,171 @@
                 `Already have an account? <span id="toggleAuthMode" class="underline cursor-pointer font-bold">Login</span>`;
             document.getElementById('toggleAuthMode').onclick = handleToggle;
         };
-        document.
+        document.getElementById('toggleAuthMode').onclick = handleToggle;
+
+        document.getElementById('btnAuthAction').onclick = async () => {
+            const email = document.getElementById('emailInput').value.trim();
+            const password = document.getElementById('passwordInput').value.trim();
+            const name = document.getElementById('regNameInput').value.trim();
+            if (!email || !password || (!isLoginMode && !name)) return;
+            try {
+                if (isLoginMode) await signInWithEmailAndPassword(auth, email, password);
+                else {
+                    const res = await createUserWithEmailAndPassword(auth, email, password);
+                    await saveUser(res.user.uid, name);
+                }
+            } catch (err) { alert(err.message); }
+        };
+
+        document.getElementById('btnGuestLogin').onclick = async () => {
+            const res = await signInAnonymously(auth);
+            await saveUser(res.user.uid, "Guest_" + Math.floor(Math.random()*1000));
+        };
+
+        async function saveUser(uid, name) {
+            myAcc = { id: uid, name, avatar: null, initials: name.substring(0,2).toUpperCase(), status: 'online' };
+            await set(ref(db, 'users/' + uid), myAcc);
+        }
+
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                onValue(ref(db, 'users/' + user.uid), s => {
+                    if (s.val()) {
+                        myAcc = s.val();
+                        document.getElementById('regScreen').classList.add('hidden');
+                        initApp();
+                        update(ref(db, 'users/' + user.uid), { status: 'online' });
+                        onDisconnect(ref(db, 'users/' + user.uid)).update({ status: 'offline' });
+                    }
+                });
+            } else {
+                document.getElementById('regScreen').classList.remove('hidden');
+            }
+        });
+
+        function initApp() {
+            document.getElementById('myHeaderName').innerText = myAcc.name;
+            renderAvatar(document.getElementById('myHeaderAvatar'), myAcc);
+            onValue(ref(db, 'users'), snapshot => {
+                allUsers = [];
+                snapshot.forEach(child => { if (child.val().id !== myAcc.id) allUsers.push(child.val()); });
+                displayUsers(allUsers);
+            });
+            updateSuggestions('');
+            runAutoCleanup('group_chat');
+        }
+
+        function displayUsers(users) {
+            const list = document.getElementById('userList'); list.innerHTML = '';
+            users.forEach(u => {
+                const isOnline = u.status === 'online';
+                const div = document.createElement('div');
+                div.className = "flex items-center gap-4 p-4 mb-3 bg-white border border-gray-100 rounded-3xl cursor-pointer hover:shadow-md transition-all";
+                div.onclick = () => openChat(u);
+                div.innerHTML = `
+                    <div class="relative">
+                        <div class="w-12 h-12 primary-bg rounded-full flex items-center justify-center text-white font-bold overflow-hidden shadow-inner">
+                            ${u.avatar ? `<img src="${u.avatar}" class="w-full h-full object-cover">` : u.initials}
+                        </div>
+                        <div class="absolute bottom-0 right-0 w-3.5 h-3.5 ${isOnline ? 'bg-green-500' : 'bg-gray-300'} border-2 border-white rounded-full"></div>
+                    </div>
+                    <div class="flex-1 overflow-hidden"><h4 class="font-bold text-gray-800 truncate">${u.name}</h4></div>`;
+                list.appendChild(div);
+            });
+        }
+
+        window.openChat = (target = 'group') => {
+            document.getElementById('chatPlaceholder').classList.add('hidden');
+            const cs = document.getElementById('chatScreen');
+            cs.classList.remove('hidden'); cs.classList.add('flex');
+            
+            if (window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.add('hidden-mobile');
+                document.getElementById('chatContentArea').classList.add('active-mobile');
+            }
+
+            if (target === 'group') {
+                chatMode = 'group'; activeChatPath = 'group_chat'; currentTarget = { name: "Global Group", avatar: null, initials: "🌍" };
+                document.getElementById('chatTitle').innerText = "Global Chat 🌍";
+                document.getElementById('chatIcon').innerHTML = '🌍';
+            } else {
+                chatMode = 'private'; currentTarget = target;
+                const cid = [myAcc.id, target.id].sort().join('_');
+                activeChatPath = 'private_chats/' + cid;
+                document.getElementById('chatTitle').innerText = target.name;
+                renderAvatar(document.getElementById('chatIcon'), target);
+                runAutoCleanup(activeChatPath);
+            }
+            onValue(ref(db, activeChatPath), s => renderMessages(s.val()));
+        };
+
+        window.viewTargetPhoto = () => {
+            if (currentTarget && (currentTarget.avatar || currentTarget.initials)) {
+                if (currentTarget.avatar) {
+                    document.getElementById('modalImg').src = currentTarget.avatar;
+                    document.getElementById('imageModal').style.display = 'flex';
+                }
+            }
+        };
+
+        window.closeChatUI = () => {
+            document.getElementById('sidebar').classList.remove('hidden-mobile');
+            document.getElementById('chatContentArea').classList.remove('active-mobile');
+            document.getElementById('chatScreen').classList.add('hidden');
+            document.getElementById('chatPlaceholder').classList.remove('hidden');
+        };
+
+        function renderMessages(data) {
+            const win = document.getElementById('msgWindow'); win.innerHTML = '';
+            if (!data) return;
+            Object.keys(data).forEach(key => {
+                const m = data[key]; const isMe = m.sid === myAcc.id;
+                const div = document.createElement('div');
+                div.className = `bubble ${isMe ? 'sent' : 'received'}`;
+                let contentHTML = m.type === 'image' ? `<img src="${m.content}" class="img-msg">` : `<div class="font-medium">${linkify(m.content)}</div>`;
+                div.onclick = (e) => {
+                    if (e.target.tagName === 'A') return;
+                    if(m.type === 'image') { document.getElementById('modalImg').src = m.content; document.getElementById('imageModal').style.display='flex'; }
+                    if(isMe) showActions(key, m.type, m.content);
+                };
+                div.innerHTML = `<div class="text-[9px] font-black opacity-40 mb-1 uppercase">${isMe ? 'You' : m.sname}</div>${contentHTML}<div class="text-[7px] text-right mt-1 opacity-50">${m.time}</div>`;
+                win.appendChild(div);
+            });
+            win.scrollTop = win.scrollHeight;
+        }
+
+        document.getElementById('btnSendMsg').onclick = () => {
+            const input = document.getElementById('msgInput'); if (!input.value.trim()) return;
+            if(editMode) { update(ref(db, `${activeChatPath}/${activeMsgId}`), { content: input.value, edited: true }); editMode = false; }
+            else push(ref(db, activeChatPath), { sid: myAcc.id, sname: myAcc.name, content: input.value, type: 'text', timestamp: Date.now(), time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+            input.value = ''; updateSuggestions('');
+        };
+
+        document.getElementById('imageInput').onchange = (e) => {
+            const r = new FileReader();
+            r.onload = () => push(ref(db, activeChatPath), { sid: myAcc.id, sname: myAcc.name, content: r.result, type: 'image', timestamp: Date.now(), time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+            r.readAsDataURL(e.target.files[0]);
+        };
+
+        function showActions(id, type, content) {
+            activeMsgId = id; document.getElementById('editMsgBtn').style.display = type === 'text' ? 'block' : 'none';
+            document.getElementById('overlayDim').classList.add('active'); document.getElementById('actionSheet').classList.add('active');
+            document.getElementById('editMsgBtn').onclick = () => { editMode = true; document.getElementById('msgInput').value = content; closeActionSheet(); };
+        }
+        window.closeActionSheet = () => { document.getElementById('overlayDim').classList.remove('active'); document.getElementById('actionSheet').classList.remove('active'); };
+        document.getElementById('deleteMsgBtn').onclick = () => { remove(ref(db, `${activeChatPath}/${activeMsgId}`)); closeActionSheet(); };
+
+        window.openProfileUI = () => { document.getElementById('editNameInput').value = myAcc.name; renderAvatar(document.getElementById('pSettingAvatar'), myAcc); document.getElementById('profileScreen').classList.add('active'); };
+        document.getElementById('profileImgInput').onchange = (e) => { const reader = new FileReader(); reader.onload = () => { myAcc.avatar = reader.result; renderAvatar(document.getElementById('pSettingAvatar'), myAcc); }; reader.readAsDataURL(e.target.files[0]); };
+        document.getElementById('btnSaveProfile').onclick = async () => { myAcc.name = document.getElementById('editNameInput').value; await update(ref(db, 'users/' + myAcc.id), myAcc); location.reload(); };
+        document.getElementById('btnLogout').onclick = () => signOut(auth).then(() => location.reload());
+
+        function renderAvatar(el, user) { if (user.avatar) el.innerHTML = `<img src="${user.avatar}" class="w-full h-full object-cover">`; else el.innerHTML = user.initials || '?'; }
+        document.getElementById('globalChatBtn').onclick = () => openChat('group');
+        document.getElementById('msgInput').onkeypress = (e) => { if(e.key === 'Enter') document.getElementById('btnSendMsg').click(); };
+        document.getElementById('searchInput').oninput = (e) => displayUsers(allUsers.filter(u => u.name.toLowerCase().includes(e.target.value.toLowerCase())));
+    </script>
+</body>
+</html>
+
+    
